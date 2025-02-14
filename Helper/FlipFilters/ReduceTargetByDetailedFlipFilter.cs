@@ -1,13 +1,12 @@
 
 using System;
-using System.Collections.Generic;
 using System.Linq.Expressions;
 using Coflnet.Sky.Core;
 using Coflnet.Sky.Filter;
 
 namespace Coflnet.Sky.Commands.Shared;
 
-[FilterDescription("Above 1 reduces by absolute number, from 0-1 uses percentage 0.2 removes 20%")]
+[FilterDescription("Above 1 reduces by absolute number, from 0-1 uses percentage 0.2 removes 20%, always matches every flip")]
 public class ReduceTargetByDetailedFlipFilter : NumberDetailedFlipFilter
 {
     public override object[] Options => [0, 50_000_000_000];
@@ -19,8 +18,8 @@ public class ReduceTargetByDetailedFlipFilter : NumberDetailedFlipFilter
         var target = NumberParser.Double(val);
         if (target < 1)
         {
-            return f => f.Context.TryAdd("target", ((long)(f.Target * (1 - target))).ToString());
+            return f => f.Context.TryAdd("target", ((long)(f.Target * (1 - target))).ToString()) || true;
         }
-        return f => f.Context.TryAdd("target", (f.Target - target).ToString());
+        return f => f.Context.TryAdd("target", (f.Target - target).ToString()) || true;
     }
 }
