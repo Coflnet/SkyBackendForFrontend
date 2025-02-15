@@ -18,8 +18,20 @@ public class ReduceTargetByDetailedFlipFilter : NumberDetailedFlipFilter
         var target = NumberParser.Double(val);
         if (target < 1)
         {
-            return f => f.Context.TryAdd("target", ((long)(f.Target * (1 - target))).ToString()) || true;
+            return f => ReducePercentage(f, target);
         }
-        return f => f.Context.TryAdd("target", (f.Target - target).ToString()) || true;
+        return f => ReduceAbsolute(f, target);
+    }
+
+    private static bool ReducePercentage(FlipInstance f, double target)
+    {
+        f.Context["target"] = ((long)(f.Target * (1 - target))).ToString();
+        return true;
+    }
+
+    private static bool ReduceAbsolute(FlipInstance f, double target)
+    {
+        f.Context["target"] = (f.Target - target).ToString();
+        return true;
     }
 }
