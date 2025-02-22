@@ -53,6 +53,7 @@ namespace Coflnet.Sky.Commands.Shared
             AdditionalFilters.Add<UtcHourOfDayDetailedFlipFilter>();
             AdditionalFilters.Add<UtcDayOfWeekDetailedFlipFilter>();
             AdditionalFilters.Add<CurrentEventDetailedFlipFilter>();
+            AdditionalFilters.Add<YearOfTheDetailedFlipFilter>();
             AdditionalFilters.Add<PerfectArmorTierDetailedFlipFilter>();
             AdditionalFilters.Add<RemoveAfterDetailedFlipFilter>();
             AdditionalFilters.Add<VolatilityDetailedFlipFilter>();
