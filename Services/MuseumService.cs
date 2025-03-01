@@ -90,13 +90,16 @@ public class MuseumService
             }
         }
 
-
+        var parentLookup = items.Where(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value != null)
+                    .ToDictionary(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value, i => i.Value);
         var result = new Dictionary<string, (long pricePerExp, long[] auctionid)>();
         foreach (var item in single)
         {
             if (prices.TryGetValue(item.Key, out var price))
             {
-                result.Add(item.Key, (price.Price / item.Value, new[] { price.AuctionId }));
+                var totalExp = item.Value;
+                totalExp = AddChildExp(parentLookup, item.Key, alreadyDonated, totalExp);
+                result.Add(item.Key, (price.Price / totalExp, new[] { price.AuctionId }));
             }
         }
         foreach (var item in set)
@@ -113,6 +116,17 @@ public class MuseumService
             .OrderBy(i => i.Value.Item1)
             .Take(amount).ToDictionary(i => i.Key, i => i.Value);
         return best10;
+    }
+
+    private static int AddChildExp(Dictionary<string, Core.Services.Item> parentLookup, string currentTag, HashSet<string> alreadyDonated, int totalExp)
+    {
+        if (parentLookup.TryGetValue(currentTag, out var child) && !alreadyDonated.Contains(child.Id))
+        {
+            totalExp += child.MuseumData.DonationXp;
+            totalExp += AddChildExp(parentLookup, child.Id, alreadyDonated, 0);
+        }
+
+        return totalExp;
     }
 
     private static void AddDonatedParents(HashSet<string> alreadyDonated, Dictionary<string, Core.Services.Item> items)

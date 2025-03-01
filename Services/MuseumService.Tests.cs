@@ -80,6 +80,12 @@ public class MuseumServiceTests
         var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object);
         var result = await service.GetBestOptions(new HashSet<string>(), 30);
         result.Count.Should().Be(5);
+        result.First().Value.pricePerExp.Should().Be(4);
+        result.First().Key.Should().Be("INFINI_VACUUM_HOOVERIUS"); // best option all donated
+
+        result = await service.GetBestOptions(new HashSet<string>() { "SKYMART_HYPER_VACUUM" }, 30);
+        result.Count.Should().Be(2);
+        result.First().Value.pricePerExp.Should().Be(7);
 
         result = await service.GetBestOptions(new HashSet<string>() { "INFINI_VACUUM_HOOVERIUS" }, 30);
         result.Count.Should().Be(0);
