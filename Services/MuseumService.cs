@@ -91,6 +91,7 @@ public class MuseumService
         }
 
         var parentLookup = items.Where(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value != null)
+                    .DistinctBy(i => i.Value.MuseumData.Parent.First().Value)
                     .ToDictionary(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value, i => i.Value);
         var result = new Dictionary<string, (long pricePerExp, long[] auctionid)>();
         foreach (var item in single)
