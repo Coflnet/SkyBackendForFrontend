@@ -24,11 +24,18 @@ namespace Coflnet.Sky.Commands
         public async Task<IEnumerable<string>> GetAllAccounts(string userId, DateTime oldest = default)
         {
             if (userId == null)
-                return new string[]{};
+                return new string[] { };
+            List<McConnect.Models.MinecraftUuid> accounts = await AllAccountsInfo(userId);
+            return accounts?.Where(a => a.Verified && a.LastRequestedAt > oldest).Select(a => a.AccountUuid).ToList() ?? new();
+        }
+
+        public async Task<List<McConnect.Models.MinecraftUuid>> AllAccountsInfo(string userId)
+        {
             var mcRequest = new RestRequest("connect/user/{userId}")
-                                .AddUrlSegment("userId", userId);
+                                            .AddUrlSegment("userId", userId);
             var mcAccounts = await ExecuteUserRequest(mcRequest);
-            return mcAccounts?.Accounts?.Where(a => a.Verified && a.LastRequestedAt > oldest).Select(a => a.AccountUuid).ToList() ?? new ();
+            var accounts = mcAccounts?.Accounts;
+            return accounts;
         }
 
         private async Task<McConnect.Models.User> ExecuteUserRequest(RestRequest mcRequest)
