@@ -15,7 +15,7 @@ namespace Coflnet.Sky.Commands.Shared
     /// </summary>
     public class SettingsUpdater
     {
-        private Dictionary<string, SettingDoc> options = new Dictionary<string, SettingDoc>(StringComparer.OrdinalIgnoreCase);
+        protected Dictionary<string, SettingDoc> options = new Dictionary<string, SettingDoc>(StringComparer.OrdinalIgnoreCase);
 
         public class SettingDoc
         {
@@ -37,12 +37,16 @@ namespace Coflnet.Sky.Commands.Shared
             AddSettings(typeof(DescriptionSetting).GetFields(), "lore");
         }
 
-        private void AddSettings(System.Reflection.FieldInfo[] fields, string prefix = "")
+        protected void AddSettings(System.Reflection.FieldInfo[] fields, string prefix = "")
         {
             foreach (var item in fields)
             {
-                if (item.FieldType.IsPrimitive || item.FieldType == typeof(string) || item.FieldType.IsEnum)
+                if (item.FieldType.IsPrimitive || item.FieldType == typeof(string) || item.FieldType.IsEnum || item.FieldType.IsArray)
                 {
+                    if(item.FieldType.IsArray)
+                    {
+                        Console.WriteLine("Array");
+                    }
                     var commandSlug = (item.GetCustomAttributes(typeof(DataMemberAttribute), true).FirstOrDefault() as DataMemberAttribute)?.Name;
                     if (commandSlug == null)
                         commandSlug = item.Name;
@@ -240,7 +244,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        private static object UpdateValueOnObject(string value, string realKey, object obj)
+        protected static object UpdateValueOnObject(string value, string realKey, object obj)
         {
             var field = obj.GetType().GetField(realKey);
             object newValue;
@@ -270,6 +274,16 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     throw new CoflnetException("parse", "This setting has to be a number. This includes 1.6M or 3.2k");
                 }
+            else if (field.FieldType.IsArray)
+            {
+                var values = value.Split(',');
+                var array = Array.CreateInstance(field.FieldType.GetElementType(), values.Length);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    array.SetValue(Convert.ChangeType(values[i], field.FieldType.GetElementType()), i);
+                }
+                newValue = array;
+            }
             else
                 try
                 {
