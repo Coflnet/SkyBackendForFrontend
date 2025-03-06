@@ -49,6 +49,7 @@ namespace Coflnet.Sky.Commands.Shared
         {
             return obj is ListEntry entry &&
                    ItemTag == entry.ItemTag &&
+                   Disabled == entry.Disabled &&
                    DisplayName == entry.DisplayName &&
                    comparer.Equals(filter, entry.filter);
         }

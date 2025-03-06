@@ -365,7 +365,7 @@ namespace Coflnet.Sky.Commands.Shared
 
             private string GetCacheKey(List<ListEntry> FullList)
             {
-                return FullList?.Select(x => "f:" + x.filter.OrderBy(f => f.Key).Select(f => f.Key + "=" + f.Value).Aggregate((a, b) => a + b))
+                return FullList?.Select(x => "f:" + x.filter.OrderBy(f => f.Key).Select(f => f.Key + "=" + f.Value).Aggregate((a, b) => a + b) + (x.Disabled ? "disabled" : ""))
                             .Aggregate((a, b) => a + b) ?? "";
             }
 
