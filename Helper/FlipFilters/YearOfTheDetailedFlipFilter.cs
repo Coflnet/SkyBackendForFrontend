@@ -16,6 +16,6 @@ public class YearOfTheDetailedFlipFilter : DetailedFlipFilter
     public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {
         string[] iterval = ["Seal", "None", "None", "None", "None", "None", "Pig", "None", "None", "None", "None", "None"];
-        return f => iterval[((int)Constants.SkyblockYear(DateTime.UtcNow) - 401) % 12] == val;
+        return f => iterval[((int)Constants.SkyblockYear(DateTime.UtcNow) - 400) % 12] == val;
     }
 }
