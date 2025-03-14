@@ -16,7 +16,7 @@ public interface IProfileClient
     Task<Dictionary<string, ProfileClient.CollectionElem>> GetCollectionData(string playerId, string profile);
     Task<Dictionary<string, ProfileClient.SlayerElem>> GetSlayerData(string playerId, string profile);
     Task<HashSet<string>> GetAlreadyDonatedToMuseum(string playerId, string profile, DateTime maxAge);
-    Task<Dictionary<string, string>> GetProfiles(string playerId);
+    Task<Dictionary<string, string>> GetProfiles(string playerId, DateTime maxAge = default);
     Task<Api.Client.Model.Member> GetProfile(string playerId, string profile, DateTime maxAge);
     Task<string> GetActiveProfileId(string playerId);
 }
@@ -84,9 +84,9 @@ public class ProfileClient : IProfileClient
         return list;
     }
 
-    public async Task<Dictionary<string, string>> GetProfiles(string playerId)
+    public async Task<Dictionary<string, string>> GetProfiles(string playerId, DateTime maxAge = default)
     {
-        var museumJson = await profileClient.ExecuteAsync(new RestRequest($"/api/profile/{playerId}"));
+        var museumJson = await profileClient.ExecuteAsync(new RestRequest($"/api/profile/{playerId}?maxAge={maxAge:yyyy-MM-ddTHH:mm:ssZ}"));
         var profiles = JsonConvert.DeserializeObject<PlayerProfiles>(museumJson.Content);
         return profiles.Profiles;
     }
