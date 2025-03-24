@@ -70,18 +70,24 @@ public class ProfileClient : IProfileClient
             if (item == null)
                 continue;
 
-            if (item.ReqCollection == null
-            || collection.TryGetValue(item.ReqCollection.Name, out CollectionElem elem)
-                    && elem.tier >= item.ReqCollection.Level)
-            {
-                list.Add(item);
-            }
-            else if (item.ReqSlayer == null
-                || slayers.TryGetValue(item.ReqSlayer.Name.ToLower(), out SlayerElem slayerElem)
-                  && slayerElem.Level.currentLevel >= item.ReqSlayer.Level)
+            if (IsNotLimitedByCollection(collection, item) && IsNotLimitedBySlayer(slayers, item))
                 list.Add(item);
         }
         return list;
+
+        static bool IsNotLimitedBySlayer(Dictionary<string, SlayerElem> slayers, ProfitableCraft item)
+        {
+            return item.ReqSlayer == null
+                            || slayers.TryGetValue(item.ReqSlayer.Name.ToLower(), out SlayerElem slayerElem)
+                              && slayerElem.Level.currentLevel >= item.ReqSlayer.Level;
+        }
+
+        static bool IsNotLimitedByCollection(Dictionary<string, CollectionElem> collection, ProfitableCraft item)
+        {
+            return item.ReqCollection == null
+                        || collection.TryGetValue(item.ReqCollection.Name, out CollectionElem elem)
+                                && elem.tier >= item.ReqCollection.Level;
+        }
     }
 
     public async Task<Dictionary<string, string>> GetProfiles(string playerId, DateTime maxAge = default)
