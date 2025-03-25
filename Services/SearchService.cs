@@ -247,7 +247,9 @@ namespace Coflnet.Sky.Commands.Shared
                 Console.WriteLine("detected uid " + uid);
                 using (var context = new HypixelContext())
                 {
-                    var auction = await context.Auctions.Where(a => a.UId == uid).Include(a => a.NBTLookup).FirstOrDefaultAsync();
+                    var adjustedLower = uid - 1000;
+                    var adjustedUpper = uid + 1000; // allow js 56 bit integers
+                    var auction = await context.Auctions.Where(a => a.UId > adjustedLower && a.UId < adjustedUpper).Include(a => a.NBTLookup).FirstOrDefaultAsync();
                     Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(auction));
                     try
                     {
