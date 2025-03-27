@@ -30,10 +30,11 @@ namespace Coflnet.Sky.Commands.Helper
             var prop = PropertiesSelector.GetProperties(auction).Select(p => p.Value).First();
             Assert.That("Bed: 9s",Is.EqualTo(prop));
         }
-        // [TestCase("0:0:255", "§10000FF")]
-        // [TestCase("0:190:0", "§200BE00")]
-        // [TestCase("10:0:17", "§00A0011")]
+        [TestCase("0:0:255", "§10000FF")]
+        [TestCase("0:190:0", "§200BE00")]
+        [TestCase("10:0:17", "§00A0011")]
         [TestCase("84:20:110", "§554146E")]
+        [TestCase("31:0:48", "§51F0030")]
         public void FormatHex(string input, string shwon)
         {
             var auction = new SaveAuction()

@@ -116,11 +116,12 @@ namespace Coflnet.Sky.Commands.Helper
             {"0000AA","§1"},
             {"5555FF","§9"},
             {"FF55FF","§d"},
-            {"6020A0","§5"}, // adjusted to match 54146e (which also appears purple but is closer to gray)
+            {"420055","§5"}, // added for 1f0030
+            {"501080","§5"}, // adjusted to match 54146e (which also appears purple but is closer to gray)
             {"A020A0","§5"},
             {"FFFFFF","§f"},
             {"AAAAAA","§7"},
-            {"323232","§8"},
+            {"555555","§8"},
             {"000000","§0"},
         };
 
@@ -141,6 +142,10 @@ namespace Coflnet.Sky.Commands.Helper
             var numeric = int.Parse(hex, System.Globalization.NumberStyles.HexNumber);
             var closest = ColorCodeToHexLookup.Keys.Select(k=>(k,dist: Math.Sqrt(Math.Pow(parts[0] - k.Item1, 2) + Math.Pow(parts[1] - k.Item2, 2) + Math.Pow(parts[2] - k.Item3, 2)))).OrderBy(k => k.dist).ToList();
             ;
+            foreach (var item in closest.Take(5))
+            {
+                Console.WriteLine(item.k + " " + item.dist);
+            }
             return ColorCodeToHexLookup[closest.First().k] + hex + "§f";
         }
     }
