@@ -76,6 +76,7 @@ namespace Coflnet.Sky.Commands.Shared
             AdditionalFilters.Add<ConnectedMcUserDetailedFlipFilter>();
             AdditionalFilters.Add<PurseDetailedFlipFilter>();
             AdditionalFilters.Add<HasRuneDetailedFlipFilter>();
+            AdditionalFilters.Add<IsFarmingItemDetailedFlipFilter>();
         }
 
         public FlipFilter(Dictionary<string, string> originalf, IPlayerInfo playerInfo)
