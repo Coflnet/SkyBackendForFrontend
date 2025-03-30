@@ -33,7 +33,7 @@ public class UpgradePriceService : BackgroundService
         {
             try
             {
-                katPrices = await katApi.KatAllGetAsync();
+                katPrices = await katApi.GetAllKatAsync();
                 foreach (var item in ItemsToGet)
                 {
                     var price = await pricesApi.ApiItemPriceItemTagCurrentGetAsync(item, 1);

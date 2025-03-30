@@ -24,9 +24,12 @@ public interface IProfileClient
 public class ProfileClient : IProfileClient
 {
     private RestClient profileClient = null;
-    public ProfileClient(IConfiguration config) =>
-                profileClient = new RestClient(config["PROFILE_BASE_URL"]);
-
+    private PlayerState.Client.Api.IPlayerStateApi playerStateApi;
+    public ProfileClient(IConfiguration config, PlayerState.Client.Api.IPlayerStateApi playerStateApi)
+    {
+        profileClient = new RestClient(config["PROFILE_BASE_URL"]);
+        this.playerStateApi = playerStateApi;
+    }
 
     public async Task<ForgeData> GetForgeData(string playerId, string profile)
     {
@@ -61,7 +64,9 @@ public class ProfileClient : IProfileClient
     public async Task<List<ProfitableCraft>> FilterProfitableCrafts(Task<List<ProfitableCraft>> craftsTask, string playerId, string profileId)
     {
         var collectionTask = GetCollectionData(playerId, profileId);
+        var skillsTask = playerStateApi.PlayerStatePlayerIdSkillsGetAsync(Guid.Parse(playerId));
         var slayers = await GetSlayerData(playerId, profileId);
+        var skills = await skillsTask;
         var collection = await collectionTask;
         var crafts = await craftsTask;
         var list = new List<ProfitableCraft>();
@@ -70,10 +75,17 @@ public class ProfileClient : IProfileClient
             if (item == null)
                 continue;
 
-            if (IsNotLimitedByCollection(collection, item) && IsNotLimitedBySlayer(slayers, item))
+            if (IsNotLimitedByCollection(collection, item) && IsNotLimitedBySlayer(slayers, item) && IsNotLimitedBySkills(skills, item))
                 list.Add(item);
         }
         return list;
+
+
+        static bool IsNotLimitedBySkills(List<PlayerState.Client.Model.Skill> skills, ProfitableCraft item)
+        {
+            return item.ReqSkill == null
+                        || item.ReqSkill.Level <= skills.FirstOrDefault(s => s.Name == item.ReqSkill.Name)?.Level;
+        }
 
         static bool IsNotLimitedBySlayer(Dictionary<string, SlayerElem> slayers, ProfitableCraft item)
         {

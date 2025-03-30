@@ -13,6 +13,7 @@ namespace Coflnet.Sky.Crafts.Models
         public IEnumerable<Ingredient> Ingredients { get; set; }
         public RequiredCollection ReqCollection { get; set; }
         public RequiredCollection ReqSlayer { get; set; }
+        public RequiredSkill ReqSkill { get; set; }
         public double Volume { get; set; }
         public float Median { get; set; }
         public DateTime LastUpdated { get; set; }
