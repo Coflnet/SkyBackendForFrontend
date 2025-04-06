@@ -57,6 +57,7 @@ public class MuseumService
         { "CRIMSON_HUNTER", [ "BLAZE_BELT"] },
         // ^ items with multiple sets
         {"SNOW_SUIT", ["SNOW_NECKLACE", "SNOW_CLOAK", "SNOW_BELT", "SNOW_GLOVES"] },
+        {"THUNDER", ["THUNDERBOLT_NECKLACE"]},
     };
 
     public async Task<Dictionary<string, (long pricePerExp, long[] auctionid)>> GetBestOptions(HashSet<string> alreadyDonated, int amount)
