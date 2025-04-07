@@ -8,7 +8,7 @@ using Coflnet.Sky.Filter;
 
 namespace Coflnet.Sky.Commands.Shared;
 [FilterDescription("average time to sell range, supports 1m,2h,3d,4w x-y <x. Eg. <4d (less than 4 days)")]
-public class AverageTimeToSellDetailedFlipFilter : VolumeDetailedFlipFilter
+public partial class AverageTimeToSellDetailedFlipFilter : VolumeDetailedFlipFilter
 {
     public override object[] Options => [];
 
@@ -26,30 +26,30 @@ public class AverageTimeToSellDetailedFlipFilter : VolumeDetailedFlipFilter
             content = content.Replace('<', '>');
         else if (content.StartsWith('>'))
             content = content.Replace('>', '<');
-        var convertedString = System.Text.RegularExpressions.Regex.Replace(content, @"([\dmhdw]+[^-]?)", (m) => ConvertToDay(m.Value));
-        Console.WriteLine(convertedString);
+        var convertedString = TimeSelect().Replace(content, (m) => ConvertToDay(m.Value).ToString(CultureInfo.InvariantCulture));
         return base.GetExpression(filters, convertedString);
     }
 
-    private string ConvertToDay(string content)
+
+    private double ConvertToDay(string content)
     {
         // timespan fromat is 1d, 2h, 3m, 4w
-        if(content.Length == 1)
+        if (content.Length == 1)
         {
-            return new CoflnetException("invalid_unit", $"{content} is not enough. The last character needs to be one of m,h,d,w (minutes, hours, days, weeks)").ToString();
+            throw new CoflnetException("invalid_unit", $"{content} is not enough. The last character needs to be one of m,h,d,w (minutes, hours, days, weeks)");
         }
         var number = double.Parse(content.Substring(0, content.Length - 1));
         var unit = content[content.Length - 1];
         switch (unit)
         {
             case 'm':
-                return (1 / (number / 60 / 24)).ToString(CultureInfo.InvariantCulture);
+                return 1 / (number / 60 / 24);
             case 'h':
-                return (1 / (number / 24)).ToString(CultureInfo.InvariantCulture);
+                return 1 / (number / 24);
             case 'd':
-                return number.ToString(CultureInfo.InvariantCulture);
+                return number;
             case 'w':
-                return (1 / (number * 7)).ToString(CultureInfo.InvariantCulture);
+                return 1 / (number * 7);
         }
         throw new CoflnetException("invalid_unit", $"The last character needs to be one of m,h,d,w (minutes, hours, days, weeks)");
     }
@@ -68,4 +68,7 @@ public class AverageTimeToSellDetailedFlipFilter : VolumeDetailedFlipFilter
         }
         return f.Volume;
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"([\dmhdw]+[^-]?)")]
+    private static partial System.Text.RegularExpressions.Regex TimeSelect();
 }
