@@ -41,22 +41,18 @@ namespace Coflnet.Sky.Commands.Shared
         {
             foreach (var item in fields)
             {
-                if (item.FieldType.IsPrimitive || item.FieldType == typeof(string) || item.FieldType.IsEnum || item.FieldType.IsArray)
+                var isDictionary = item.FieldType.IsGenericType && item.FieldType.GetGenericTypeDefinition() == typeof(Dictionary<,>);
+                if (!item.FieldType.IsPrimitive && item.FieldType != typeof(string) && !item.FieldType.IsEnum && !item.FieldType.IsArray && !isDictionary)
                 {
-                    if(item.FieldType.IsArray)
-                    {
-                        Console.WriteLine("Array");
-                    }
-                    var commandSlug = (item.GetCustomAttributes(typeof(DataMemberAttribute), true).FirstOrDefault() as DataMemberAttribute)?.Name;
-                    if (commandSlug == null)
-                        commandSlug = item.Name;
-                    var doc = item.GetCustomAttributes(typeof(SettingsDocAttribute), true).FirstOrDefault() as SettingsDocAttribute;
-                    SettingDoc desc = GetDesc(item, doc, prefix);
-                    options.Add(prefix + commandSlug, GetDesc(item, doc, prefix));
-                    if (doc?.ShortHand != null)
-                        options.Add(doc?.ShortHand, GetDesc(item, doc, prefix, true));
+                    continue;
                 }
-
+                var commandSlug = (item.GetCustomAttributes(typeof(DataMemberAttribute), true).FirstOrDefault() as DataMemberAttribute)?.Name;
+                if (commandSlug == null)
+                    commandSlug = item.Name;
+                var doc = item.GetCustomAttributes(typeof(SettingsDocAttribute), true).FirstOrDefault() as SettingsDocAttribute;
+                options.Add(prefix + commandSlug, GetDesc(item, doc, prefix));
+                if (doc?.ShortHand != null)
+                    options.Add(doc?.ShortHand, GetDesc(item, doc, prefix, true));
             }
         }
 
@@ -283,6 +279,21 @@ namespace Coflnet.Sky.Commands.Shared
                     array.SetValue(Convert.ChangeType(values[i], field.FieldType.GetElementType()), i);
                 }
                 newValue = array;
+            }
+            else if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            {
+                var dict = (Dictionary<string, string>)field.GetValue(obj);
+                var parts = value.Split(' ', 2);
+                if (parts.Length == 1)
+                {
+                    dict.Remove(parts[0]);
+                    return null;
+                }
+                else
+                {
+                    dict[parts[0]] = parts[1];
+                    return parts[1];
+                }
             }
             else
                 try
