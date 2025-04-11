@@ -136,12 +136,19 @@ namespace Coflnet.Sky.Commands.Helper
 
         public static string FormatHex(string separated)
         {
-            // 0:0:0 to hex
-            var parts = separated.Split(':').Select(p => int.Parse(p)).ToArray();
-            var hex = string.Join("", parts.Select(p => p.ToString("X2")));
-            var numeric = int.Parse(hex, System.Globalization.NumberStyles.HexNumber);
-            var closest = ColorCodeToHexLookup.Keys.Select(k=>(k,dist: Math.Sqrt(Math.Pow(parts[0] - k.Item1, 2) + Math.Pow(parts[1] - k.Item2, 2) + Math.Pow(parts[2] - k.Item3, 2)))).OrderBy(k => k.dist).ToList();
-            return ColorCodeToHexLookup[closest.First().k] + hex + "§f";
+            try
+            {
+                // 0:0:0 to hex
+                var parts = separated.Split(':').Select(p => int.Parse(p)).ToArray();
+                var hex = string.Join("", parts.Select(p => p.ToString("X2")));
+                var numeric = int.Parse(hex, System.Globalization.NumberStyles.HexNumber);
+                var closest = ColorCodeToHexLookup.Keys.Select(k => (k, dist: Math.Sqrt(Math.Pow(parts[0] - k.Item1, 2) + Math.Pow(parts[1] - k.Item2, 2) + Math.Pow(parts[2] - k.Item3, 2)))).OrderBy(k => k.dist).ToList();
+                return ColorCodeToHexLookup[closest.First().k] + hex + "§f";
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Failed to parse hex color {separated}", e);
+            }
         }
     }
 }
