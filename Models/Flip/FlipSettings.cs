@@ -444,7 +444,7 @@ namespace Coflnet.Sky.Commands.Shared
             /// <exception cref="NotImplementedException"></exception>
             private void ExpandFilters(List<ListEntry> fullList, ListEntry item)
             {
-                if (item.filter == null || !item.filter.Any(f => f.Key == "ArmorSet" && !ArmorSetDetailedFlipFilter.ExtraArmorSets.ContainsKey(f.Value)))
+                if (item.filter == null || !item.filter.Any(f => f.Key == "ArmorSet" && !ArmorSetDetailedFlipFilter.ExtraArmorSets.ContainsKey(f.Value.ToLower())))
                     return;
                 FullList.Remove(item);
                 string[] parts = ["Helmet", "Chestplate", "Leggings", "Boots"];
