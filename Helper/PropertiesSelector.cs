@@ -139,7 +139,7 @@ namespace Coflnet.Sky.Commands.Helper
             try
             {
                 // 0:0:0 to hex
-                var parts = separated.Split(':').Select(p => int.Parse(p)).ToArray();
+                var parts = separated.Split(':').Select(p => int.TryParse(p, out var val) ? val : 0).ToArray();
                 var hex = string.Join("", parts.Select(p => p.ToString("X2")));
                 var numeric = int.Parse(hex, System.Globalization.NumberStyles.HexNumber);
                 var closest = ColorCodeToHexLookup.Keys.Select(k => (k, dist: Math.Sqrt(Math.Pow(parts[0] - k.Item1, 2) + Math.Pow(parts[1] - k.Item2, 2) + Math.Pow(parts[2] - k.Item3, 2)))).OrderBy(k => k.dist).ToList();
