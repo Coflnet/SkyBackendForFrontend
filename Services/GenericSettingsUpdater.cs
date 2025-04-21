@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -20,6 +21,12 @@ namespace Coflnet.Sky.Commands.Shared
 
         public object Update(object target, string key, string value)
         {
+            SettingDoc doc = GetTargetAndInfo(ref target, key);
+            return UpdateValueOnObject(value, doc.RealName, target);
+        }
+
+        private SettingDoc GetTargetAndInfo(ref object target, string key)
+        {
             if (!options.TryGetValue(key, out SettingDoc doc))
             {
                 var closest = options.Keys.OrderBy(k => Fastenshtein.Levenshtein.Distance(k.ToLower(), key.ToLower())).First();
@@ -29,10 +36,16 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 if (mapper.TryGetValue(doc.Prefix, out var func))
                 {
-                    target = func(target);
-                }
+                    target = func(target);                }
             }
-            return UpdateValueOnObject(value, doc.RealName, target);
+
+            return doc;
+        }
+
+        public object GetCurrent(object target, string key)
+        {
+            SettingDoc doc = GetTargetAndInfo(ref target, key);
+            return GetValueOnObject(doc.RealName, target);
         }
     }
 }

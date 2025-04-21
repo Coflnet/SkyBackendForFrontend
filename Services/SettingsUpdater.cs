@@ -19,11 +19,11 @@ namespace Coflnet.Sky.Commands.Shared
 
         public class SettingDoc
         {
-            public string RealName;
-            public string Info;
-            public bool Hide;
-            public string ShortHand;
-            public string Type;
+            public string RealName { get; set; }
+            public string Info { get; set; }
+            public bool Hide { get; set; }
+            public string ShortHand { get; set; }
+            public string Type { get; set; }
 
             public string Prefix { get; set; }
         }
@@ -215,7 +215,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        private object GetValueOnObject(string realKey, object obj)
+        protected object GetValueOnObject(string realKey, object obj)
         {
             var field = obj.GetType().GetField(realKey);
             return field.GetValue(obj);
@@ -244,6 +244,10 @@ namespace Coflnet.Sky.Commands.Shared
         {
             var field = obj.GetType().GetField(realKey);
             object newValue;
+            if (field == null)
+            {
+                throw new CoflnetException("invalid_setting", $"the setting {realKey} could not be found");
+            }
             // if no value is provided and its a bool toggle it
             if (string.IsNullOrEmpty(value) && field.FieldType == typeof(bool))
             {
