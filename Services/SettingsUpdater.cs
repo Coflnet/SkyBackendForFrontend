@@ -217,6 +217,8 @@ namespace Coflnet.Sky.Commands.Shared
 
         protected object GetValueOnObject(string realKey, object obj)
         {
+            if (obj == null)
+                return null;
             var field = obj?.GetType()?.GetField(realKey);
             return field?.GetValue(obj);
         }
