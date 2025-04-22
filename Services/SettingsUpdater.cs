@@ -217,8 +217,8 @@ namespace Coflnet.Sky.Commands.Shared
 
         protected object GetValueOnObject(string realKey, object obj)
         {
-            var field = obj.GetType().GetField(realKey);
-            return field.GetValue(obj);
+            var field = obj?.GetType()?.GetField(realKey);
+            return field?.GetValue(obj);
         }
 
 
@@ -276,7 +276,7 @@ namespace Coflnet.Sky.Commands.Shared
                 }
             else if (field.FieldType.IsArray)
             {
-                var values = value.Split(',');
+                var values = value?.Split(',') ?? [];
                 var array = Array.CreateInstance(field.FieldType.GetElementType(), values.Length);
                 for (int i = 0; i < values.Length; i++)
                 {
