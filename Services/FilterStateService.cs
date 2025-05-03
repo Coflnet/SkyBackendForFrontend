@@ -27,6 +27,7 @@ public class FilterStateService
         public Dictionary<int, HashSet<string>> IntroductionAge { get; set; } = new();
         public HashSet<string> ExistingTags { get; set; } = new();
         public HashSet<string> CurrentPerks { get; set; } = new();
+        public HashSet<string> NextPerks { get; set; } = new();
     }
 
     private SemaphoreSlim updateLock = new SemaphoreSlim(1, 1);
@@ -116,6 +117,22 @@ public class FilterStateService
         if (minister != null)
             State.CurrentPerks.Add(minister);
         State.CurrentMayor = mayors.mayor.name.ToLower();
+        var currentElection = mayors.current;
+        if (currentElection == null)
+        {
+            State.NextPerks = [];
+            return;
+        }
+        var probableWinner = currentElection.candidates
+            .OrderByDescending(c => c.votes)
+            .FirstOrDefault().perks.Select(p => p.name).ToList();
+        State.NextPerks = new HashSet<string>(probableWinner);
+        var runnerUp = currentElection.candidates
+            .OrderByDescending(c => c.votes)
+            .Skip(1)
+            .FirstOrDefault().perks.Where(p => p.minister).Select(p => p.name).FirstOrDefault();
+        if (runnerUp != null)
+            State.NextPerks.Add(runnerUp);        
     }
 
     public void GetItemCategory(ItemCategory category)
@@ -227,7 +244,20 @@ public class FilterStateService
     public record MayorResponse(
        [property: JsonProperty("success")] bool success,
        [property: JsonProperty("lastUpdated")] long lastUpdated,
-       [property: JsonProperty("mayor")] Mayor mayor
+       [property: JsonProperty("mayor")] Mayor mayor,
+        [property: JsonProperty("current")] Current current
+   );
+
+    public record Current(
+         [property: JsonProperty("year")] int year,
+         [property: JsonProperty("candidates")] IReadOnlyList<Candidate> candidates
+     );
+
+    public record Candidate(
+       [property: JsonProperty("key")] string key,
+       [property: JsonProperty("name")] string name,
+       [property: JsonProperty("perks")] IReadOnlyList<Perk> perks,
+       [property: JsonProperty("votes")] int votes
    );
 
     public record Mayor(

@@ -58,13 +58,19 @@ public class ActivePerkDetailedFlipFilter : DetailedFlipFilter
 
     public FilterType FilterType => FilterType.Equal;
 
-    public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
+    public virtual Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
+    {
+        val = CheckValue(val);
+        var service = DiHandler.GetService<FilterStateService>();
+        service.UpdateState().Wait();
+        return (f) => service.State.CurrentPerks.Contains(val, StringComparer.OrdinalIgnoreCase);
+    }
+
+    protected string CheckValue(string val)
     {
         val = Options.FirstOrDefault(t => t.ToString().ToLower() == val.ToLower())?.ToString().ToLower();
         if (val == null)
             throw new CoflnetException("invalid_perk", "The specified Perk was not found");
-        var service = DiHandler.GetService<FilterStateService>();
-        service.UpdateState().Wait();
-        return (f) => service.State.CurrentPerks.Contains(val, StringComparer.OrdinalIgnoreCase);
+        return val;
     }
 }
