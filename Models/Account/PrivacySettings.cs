@@ -13,6 +13,8 @@ namespace Coflnet.Sky.Commands.Shared
         public bool CollectInventory;
         [SettingsDoc("Stop trades from being stored")]
         public bool DisableTradeStoring;
+        [SettingsDoc("Stop kuudra profit from being calculated", "noKuudra")]
+        public bool DisableKuudraTracking;
         [SettingsDoc("Read and upload tab contents when joining server (detect profile type, server and island location)")]
         public bool CollectTab;
         [SettingsDoc("Read and upload scoreboard peridicly to detect purse")]
