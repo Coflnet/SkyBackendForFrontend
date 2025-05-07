@@ -16,7 +16,7 @@ namespace Coflnet.Sky.Commands.Shared;
 
 public class MuseumServiceTests
 {
-    Core.Services.Item baseItem = new("xy", "111", "Tes Item", "b", "LEGENDARY", 0, null, null, 0, null, false, "TEST", null, null, null, null, null, "none", null, null, null,
+    Core.Services.Item baseItem = new("xy", "111", "Tes Item", "b", "LEGENDARY", 0, null, null, 0, null, false, "TEST", null, null, null, null, null, null, "none", null, null, null,
             new(0, "ARMOR_SETS", new(), null, new() { { "XY", 4 } }, "INTERMEDIATE"), false, null, null, null, null);
     [SetUp]
     public void Setup()
