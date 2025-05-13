@@ -123,16 +123,34 @@ public class FilterStateService
             State.NextPerks = [];
             return;
         }
+        if (currentElection.candidates.All(c => c.votes == 0))
+        {
+            // on hidden elections all perks may be possible 
+            // https://discord.com/channels/267680588666896385/1369933748501610506
+            State.NextPerks.Clear();
+            foreach (var candidate in currentElection.candidates)
+            {
+                foreach (var perk in candidate.perks)
+                {
+                    State.NextPerks.Add(perk.name);
+                }
+            }
+            return;
+        }
         var probableWinner = currentElection.candidates
             .OrderByDescending(c => c.votes)
             .FirstOrDefault().perks.Select(p => p.name).ToList();
-        State.NextPerks = new HashSet<string>(probableWinner);
+        State.NextPerks.Clear();
+        foreach (var perk in probableWinner)
+        {
+            State.NextPerks.Add(perk);
+        }
         var runnerUp = currentElection.candidates
             .OrderByDescending(c => c.votes)
             .Skip(1)
             .FirstOrDefault().perks.Where(p => p.minister).Select(p => p.name).FirstOrDefault();
         if (runnerUp != null)
-            State.NextPerks.Add(runnerUp);        
+            State.NextPerks.Add(runnerUp);
     }
 
     public void GetItemCategory(ItemCategory category)
