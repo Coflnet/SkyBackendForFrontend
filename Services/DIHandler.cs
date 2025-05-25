@@ -20,9 +20,7 @@ using Coflnet.Sky.Settings.Client.Api;
 using Coflnet.Sky.Filter;
 using Coflnet.Sky.EventBroker.Client.Api;
 using Coflnet.Sky.Bazaar.Flipper.Client.Api;
-using Coflnet.Sky.Auctions.Client.Api;
 using Coflnet.Sky.Core.Services;
-using Coflnet.Sky.Items.Client.Extensions;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -78,13 +76,10 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddPaymentSingleton<ILicenseApi>(url => new LicenseApi(url));
             services.AddPaymentSingleton<ISubscriptionApi>(url => new SubscriptionApi(url));
             services.AddSingleton<TokenService>();
-            services.AddApi((Items.Client.Client.HostConfiguration options) =>
+            services.AddSingleton<IItemsApi>(di=>
             {
-                var config = services.BuildServiceProvider().GetRequiredService<IConfiguration>();
-                options.AddApiHttpClients(c =>
-                {
-                    c.BaseAddress = new Uri(config["ITEMS_BASE_URL"]);
-                });
+                var config = di.GetRequiredService<IConfiguration>();
+                return new ItemsApi(config["ITEMS_BASE_URL"]);
             });
             services.AddSingleton<IReferralApi>(context =>
             {
@@ -205,8 +200,10 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<IStateUpdateService, StateUpdateService>();
             services.AddSingleton<McAccountService>();
             services.AddSingleton<MuseumService>();
+            services.AddSingleton<SearchService>();
             services.AddHostedService<ServicePorter>();
             services.AddSingleton<NBT>();
+            services.AddSingleton<INBT>(di=> di.GetRequiredService<NBT>());
             services.AddSingleton<ItemDetails>();
             services.AddHostedService<FilterLoader>();
             services.AddTransient<HypixelContext>(s => new HypixelContext());

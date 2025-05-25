@@ -39,8 +39,8 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (bazaarItems == null || Random.Shared.NextDouble() < 0.01)
             {
-                var response = await itemClient.ItemsBazaarTagsGetAsync();
-                if (response.TryOk(out var items))
+                var items = await itemClient.ItemsBazaarTagsGetAsync();
+                if (items != null)
                 {
                     bazaarItems = [.. items];
                 }

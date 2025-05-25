@@ -18,14 +18,7 @@ public class IntroductionAgeDaysTests
         var mock = new Mock<IItemsApi>();
         DiHandler.OverrideService<FilterStateService, FilterStateService>(new FilterStateService(
             NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, mock.Object));
-        var mockResponse = new Mock<IItemsRecentGetApiResponse>();
-        mockResponse.Setup(x => x.TryOk(out It.Ref<List<string>>.IsAny))
-            .Returns((out List<string> data) =>
-            {
-                data = new List<string>() { "different" };
-                return true;
-            });
-        mock.Setup(x => x.ItemsRecentGetAsync(1, default)).ReturnsAsync(mockResponse.Object);
+        mock.Setup(x => x.ItemsRecentGetAsync(1,0, default)).ReturnsAsync(new List<string>() { "different" });
 
         DiHandler.OverrideService<ItemDetails, ItemDetails>(new ItemDetails(null)
         {

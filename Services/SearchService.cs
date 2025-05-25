@@ -229,12 +229,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         private async Task<IEnumerable<ItemDetails.ItemSearchResult>> GetItems(string term, int resultAmount)
         {
-            var itemsResult = await itemsApi.ItemsSearchTermGetAsync(term, resultAmount);
-            if(!itemsResult.TryOk(out var items))
-            {
-                dev.Logger.Instance.Error("Error searching for items: " + itemsResult.RawContent);
-                return null;
-            }
+            var items = await itemsApi.ItemsSearchTermGetAsync(term, resultAmount);
             return items?.Select(i => new ItemDetails.ItemSearchResult()
             {
                 Name = i.Text + (i.Flags.Value.HasFlag(Sky.Items.Client.Model.ItemFlags.BAZAAR) ? " - bazaar"
