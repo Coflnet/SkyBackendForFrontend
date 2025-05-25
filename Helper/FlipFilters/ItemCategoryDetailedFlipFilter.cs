@@ -24,7 +24,7 @@ namespace Coflnet.Sky.Commands.Shared
             if (!service.State.itemCategories.ContainsKey(itemCategory))
             {
                 Activity.Current.Log($"Got itemCategory {itemCategory}, updating cache");
-                service.GetItemCategory(itemCategory);
+                service.GetItemCategory(itemCategory).Wait();
             }
             var tags = service.State.itemCategories[itemCategory];
             return flip => tags.Contains(flip.Auction.Tag);
