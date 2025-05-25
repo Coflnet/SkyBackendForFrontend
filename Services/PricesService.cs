@@ -39,7 +39,11 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (bazaarItems == null || Random.Shared.NextDouble() < 0.01)
             {
-                bazaarItems = new HashSet<string>(await itemClient.ItemsBazaarTagsGetAsync());
+                var response = await itemClient.ItemsBazaarTagsGetAsync();
+                if (response.TryOk(out var items))
+                {
+                    bazaarItems = [.. items];
+                }
             }
             return bazaarItems;
         }
@@ -140,7 +144,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         private static int GetItemId(string itemTag, bool forceget = true)
         {
-            return ItemDetails.Instance.GetItemIdForTag(itemTag, forceget);
+            return DiHandler.GetService<ItemDetails>().GetItemIdForTag(itemTag, forceget);
         }
 
         public async Task<IEnumerable<AveragePrice>> GetHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)

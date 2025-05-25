@@ -22,7 +22,7 @@ namespace Coflnet.Sky.Commands.Shared
         [SetUp]
         public void Setup()
         {
-            DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine());
+            DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine(new NBTMock()));
             sampleFlip = new FlipInstance()
             {
                 MedianPrice = 10,
@@ -38,69 +38,6 @@ namespace Coflnet.Sky.Commands.Shared
                 Context = new Dictionary<string, string>(),
                 Finder = LowPricedAuction.FinderType.SNIPER_MEDIAN
             };
-        }
-        //[Test] //can't run in ci
-        public void FlipFilterLoad()
-        {
-            var settings = JsonConvert.DeserializeObject<FlipSettings>(File.ReadAllText("mock/bigsettings.json"));
-            settings.WhiteList = new();
-            var itemsApi = new Mock<IItemsApi>();
-            itemsApi.Setup(i => i.ItemsCategoryCategoryItemsGet(It.IsAny<Items.Client.Model.ItemCategory>(), 0)).Returns(new List<string>() { "XY" });
-            itemsApi.Setup(i => i.ItemsRecentGet(It.IsAny<double>(), 0)).Returns(new List<string>() { "XY" });
-            itemsApi.Setup(i => i.ItemNamesGetAsync(0, default)).ReturnsAsync(new List<Items.Client.Model.ItemPreview>() { new() { Name = "XY" } });
-            var stateService = new FilterStateService(NullLogger<FilterStateService>.Instance, null, itemsApi.Object);
-            stateService.State.LastUpdate = DateTime.UtcNow;
-            stateService.State.CurrentMayor = "Aatrox";
-            DiHandler.OverrideService<FilterStateService, FilterStateService>(stateService);
-            sampleFlip.Auction.StartingBid = 10;
-            sampleFlip.MedianPrice = 1000000;
-            sampleFlip.Auction.ItemName = "Something to match against";
-            sampleFlip.Auction.Tag = "PET_TIGER";
-            sampleFlip.Auction.Bin = true;
-            sampleFlip.Auction.FlatenedNBT = new() { { "colorx", "106:156:27" } };
-            sampleFlip.Auction.NBTLookup = new List<NBTLookup>();
-            Modify(settings.BlackList);
-            Modify(settings.WhiteList);
-            NoMatch(settings, sampleFlip);
-            var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 50; i++)
-            {
-                settings.ClearListMatchers();
-                NoMatch(settings, sampleFlip);
-            }
-            Assert.That(watch.ElapsedMilliseconds, Is.LessThanOrEqualTo(6 * TestConstants.DelayMultiplier));
-            watch = Stopwatch.StartNew();
-            for (int i = 0; i < 50 * 200; i++)
-            {
-                NoMatch(settings, sampleFlip);
-            }
-            Assert.That(watch.ElapsedMilliseconds, Is.LessThanOrEqualTo(1 * TestConstants.DelayMultiplier));
-
-            static void Modify(List<ListEntry> list)
-            {
-                return;
-                foreach (var item in list)
-                {
-                    if (item.ItemTag == null)
-                    {
-                        if (item.filter.Any(f => f.Key.Contains("Color")) || item.filter.ContainsKey("Seller") || item.filter.ContainsKey("ArmorSet") || item.filter.ContainsKey("Profit"))
-                            item.Tags = new List<string>() { "XY" };
-                        else if (item.filter.ContainsKey("ItemNameContains") || item.filter.ContainsKey("ItemCategory") ||//
-                             item.filter.ContainsKey("FlipFinder") && true//
-                                                                          //  || item.filter.ContainsKey("ReferenceCount") && true
-                                                                          //  item.filter.ContainsKey("ProfitPercentage") && false
-                            )
-                            item.ItemTag = "XY";
-                        else
-                        {
-                            item.filter.Remove("ReferenceCount");
-                            item.filter.Remove("Volatility");
-                         //   item.filter.Remove("efficiency");
-                            Console.WriteLine(JsonConvert.SerializeObject(item));
-                        }
-                    }
-                }
-            }
         }
 
         [Test]
@@ -179,14 +116,13 @@ namespace Coflnet.Sky.Commands.Shared
         [Test]
         public void CandyBlacklistMatch()
         {
-            NBT.Instance = new NBTMock();
             sampleFlip.Auction.FlatenedNBT["candyUsed"] = "1";
             var settings = new FlipSettings()
             {
                 BlackList = new List<ListEntry>() { new() { filter = new Dictionary<string, string>() { { "Candy", "any" } } } }
             };
             var matches = settings.MatchesSettings(sampleFlip);
-            Console.WriteLine(new FilterEngine().GetMatchExpression(settings.BlackList[0].filter).ToString());
+            Console.WriteLine(new FilterEngine(new NBTMock()).GetMatchExpression(settings.BlackList[0].filter).ToString());
             Assert.That(!matches.Item1, "flip should not match " + matches.Item2);
             sampleFlip.Auction.FlatenedNBT["candyUsed"] = "0";
             matches = settings.MatchesSettings(sampleFlip);
@@ -196,7 +132,6 @@ namespace Coflnet.Sky.Commands.Shared
         [Test]
         public void WhitelistBookEnchantBlackistItem()
         {
-            NBT.Instance = new NBTMock();
             var tag = "ENCHANTED_BOOK";
             FlipInstance bookOfa = CreatOfaAuction(tag);
             FlipInstance reaperOfa = CreatOfaAuction("REAPER");
@@ -216,7 +151,6 @@ namespace Coflnet.Sky.Commands.Shared
         [Test]
         public void MinProfitFilterMatch()
         {
-            NBT.Instance = new NBTMock();
             sampleFlip.Auction.NBTLookup = new NBTLookup[] { new(1, 2) };
             var settings = new FlipSettings()
             {
@@ -233,7 +167,6 @@ namespace Coflnet.Sky.Commands.Shared
         [Test]
         public void VolumeDeciamalFilterMatch()
         {
-            NBT.Instance = new NBTMock();
             sampleFlip.Auction.NBTLookup = new NBTLookup[] { new(1, 2) };
             var settings = new FlipSettings()
             {
@@ -328,7 +261,6 @@ namespace Coflnet.Sky.Commands.Shared
         [Test]
         public void RenownedFivestaredMythic()
         {
-            NBT.Instance = new NBTMock();
             var filters = new Dictionary<string, string>() { { "Stars", "5" }, { "Reforge", "Renowned" }, { "Rarity", "MYTHIC" } };
             var matcher = new ListEntry() { filter = filters, ItemTag = "abc" };
             var result = matcher.GetExpression(null).Compile()(new FlipInstance()
@@ -497,8 +429,18 @@ namespace Coflnet.Sky.Commands.Shared
             };
         }
 
-        class NBTMock : INBT
+        public class NBTMock : INBT
         {
+            public NBTLookup[] CreateLookup(string auctionTag, Dictionary<string, object> data, List<KeyValuePair<string, object>> flatList = null)
+            {
+                throw new NotImplementedException();
+            }
+
+            public NBTLookup[] CreateLookup(SaveAuction auction)
+            {
+                throw new NotImplementedException();
+            }
+
             public short GetKeyId(string name)
             {
                 return 1;

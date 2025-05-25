@@ -26,9 +26,18 @@ namespace Coflnet.Sky.Commands.Shared
         const int targetAmount = 5;
         private const string VALID_MINECRAFT_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz1234567890_";
         ConcurrentQueue<PopularSite> popularSite = new ConcurrentQueue<PopularSite>();
+        private ItemDetails itemDetails;
+        private NBT nBT;
+        private Items.Client.Api.IItemsApi itemsApi;
 
         private int updateCount = 0;
-        public static SearchService Instance { get; private set; }
+
+        public SearchService(ItemDetails itemDetails, NBT nBT, Items.Client.Api.IItemsApi itemsApi)
+        {
+            this.itemDetails = itemDetails;
+            this.nBT = nBT;
+            this.itemsApi = itemsApi;
+        }
 
         public async Task AddPopularSite(string type, string id)
         {
@@ -57,10 +66,6 @@ namespace Coflnet.Sky.Commands.Shared
             return CreateResponse(search, token);
         }
 
-        static SearchService()
-        {
-            Instance = new SearchService();
-        }
 
         private async Task Work()
         {
@@ -76,7 +81,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         private async Task AddOccurences(HypixelContext context)
         {
-            foreach (var itemId in ItemDetails.Instance.TagLookup.Values)
+            foreach (var itemId in itemDetails.TagLookup.Values)
             {
                 var sample = await context.Auctions
                                 .Where(a => a.ItemId == itemId)
@@ -108,7 +113,7 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 //if (updateCount % 12 == 5)
                 //    PartialUpdateCache(context);
-                ItemDetails.Instance.SaveHits(context);
+                itemDetails.SaveHits(context);
                 PlayerSearch.Instance.SaveHits(context);
                 await context.SaveChangesAsync();
             }
@@ -224,9 +229,13 @@ namespace Coflnet.Sky.Commands.Shared
 
         private async Task<IEnumerable<ItemDetails.ItemSearchResult>> GetItems(string term, int resultAmount)
         {
-            var items = DiHandler.ServiceProvider.GetService<Sky.Items.Client.Api.IItemsApi>();
-            var itemsResult = await items.ItemsSearchTermGetAsync(term, resultAmount);
-            return itemsResult?.Select(i => new ItemDetails.ItemSearchResult()
+            var itemsResult = await itemsApi.ItemsSearchTermGetAsync(term, resultAmount);
+            if(!itemsResult.TryOk(out var items))
+            {
+                dev.Logger.Instance.Error("Error searching for items: " + itemsResult.RawContent);
+                return null;
+            }
+            return items?.Select(i => new ItemDetails.ItemSearchResult()
             {
                 Name = i.Text + (i.Flags.Value.HasFlag(Sky.Items.Client.Model.ItemFlags.BAZAAR) ? " - bazaar"
                         : i.Flags.Value.HasFlag(Sky.Items.Client.Model.ItemFlags.AUCTION) ? "" : " - not on ah"),
@@ -238,7 +247,7 @@ namespace Coflnet.Sky.Commands.Shared
             }).ToList();
         }
 
-        private static async Task SearchForAuctions(string search, Channel<SearchResultItem> Results, string[] searchWords)
+        private async Task SearchForAuctions(string search, Channel<SearchResultItem> Results, string[] searchWords)
         {
             if (searchWords.Count() > 1)
                 return;
@@ -269,7 +278,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
             else if (search.Length == 12 || search.Length == 36)
             {
-                var key = NBT.Instance.GetKeyId("uid");
+                var key = nBT.GetKeyId("uid");
                 var val = NBT.UidToLong(search);
                 using (var context = new HypixelContext())
                 {
@@ -287,7 +296,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        private static void AddAuctionAsResult(Channel<SearchResultItem> Results, SaveAuction auction)
+        private void AddAuctionAsResult(Channel<SearchResultItem> Results, SaveAuction auction)
         {
             if (auction == null)
                 return;
@@ -299,7 +308,7 @@ namespace Coflnet.Sky.Commands.Shared
                 IconUrl = "https://sky.coflnet.com/static/icon/" + auction.Tag,
                 Id = auction.Uuid
             });
-            var key = NBT.Instance.GetKeyId("uid");
+            var key = nBT.GetKeyId("uid");
             var filter = new Dictionary<string, string>();
             filter["UId"] = auction.NBTLookup.Where(l => l.KeyId == key).FirstOrDefault().Value.ToString("X");
             AddFilterResult(Results, filter, auction.ItemName + " (Sells)", auction.Tag, 100_000);

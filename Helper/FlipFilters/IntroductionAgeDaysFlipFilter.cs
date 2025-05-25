@@ -18,10 +18,10 @@ public class IntroductionAgeDaysDetailedFlipFilter : DetailedFlipFilter
             throw new CoflnetException("invalid_days", $"the specified days {val} should be a number `<` (smaller than) is implicitly added");
         var service = DiHandler.GetService<FilterStateService>();
         var state = service.State;
-        if(ItemDetails.Instance.TagLookup.Count > 10 && state.ExistingTags.Count == 0)
+        if(DiHandler.GetService<ItemDetails>().TagLookup.Count > 10 && state.ExistingTags.Count == 0)
         {
             // for very new items check against known items on startup
-            state.ExistingTags = new HashSet<string>(ItemDetails.Instance.TagLookup.Keys);
+            state.ExistingTags = new HashSet<string>(DiHandler.GetService<ItemDetails>().TagLookup.Keys);
         }
         
         var items = service.GetIntroductionAge(days);

@@ -10,7 +10,7 @@ namespace Coflnet.Sky.Commands.Shared;
 
 public class ArmorSetNoHelmetDetailedFlipFilter : DetailedFlipFilter
 {
-    public object[] Options => ItemDetails.Instance.TagLookup.Where(t => t.Key.EndsWith("_LEGGINGS")).Select(t => (object)t.Key.Replace("_LEGGINGS", "")).ToArray();
+    public object[] Options => DiHandler.GetService<ItemDetails>().TagLookup.Where(t => t.Key.EndsWith("_LEGGINGS")).Select(t => (object)t.Key.Replace("_LEGGINGS", "")).ToArray();
 
     public FilterType FilterType => FilterType.Equal;
 

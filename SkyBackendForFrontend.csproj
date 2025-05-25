@@ -35,13 +35,13 @@
     <PackageReference Include="Google.Apis.Auth" Version="1.69.0" />
     <PackageReference Include="Coflnet.Sky.EventBroker.Client" Version="0.5.5" />
     <PackageReference Include="Coflnet.Sky.Api.Client" Version="0.7.2" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.9.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.11.0" />
 
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
   </ItemGroup>
 

@@ -85,7 +85,7 @@ public class CraftCostWeightTests
     [Test]
     public void End2End()
     {
-        DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine());
+        DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine(null));
         var flipSettings = new FlipSettings()
         {
             WhiteList = new List<ListEntry>(){

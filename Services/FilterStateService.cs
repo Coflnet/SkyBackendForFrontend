@@ -86,8 +86,8 @@ public class FilterStateService
         {
             if (item.Key <= 1)
                 continue;
-            var newItems = itemsApi.ItemsRecentGet(item.Key);
-            if (newItems == null)
+            var newItemsResponse = await itemsApi.ItemsRecentGetAsync(item.Key);
+            if (!newItemsResponse.TryOk(out var newItems))
             {
                 logger.LogError("Could not load new items from {0} days", item.Key);
                 continue;
@@ -153,12 +153,16 @@ public class FilterStateService
             State.NextPerks.Add(runnerUp);
     }
 
-    public void GetItemCategory(ItemCategory category)
+    public async Task GetItemCategory(ItemCategory category)
     {
-        var items = itemsApi.ItemsCategoryCategoryItemsGet(category);
+        var response = await itemsApi.ItemsCategoryCategoryItemsGetAsync(category);
         if (!State.itemCategories.ContainsKey(category))
             State.itemCategories[category] = new HashSet<string>();
-
+        if (!response.TryOk(out var items))
+        {
+            Activity.Current?.AddTag("error", "could_not_load");
+            throw new CoflnetException("could_not_load", $"Could not load items for category {category}");
+        }
         foreach (var item in items)
         {
             State.itemCategories[category].Add(item);
@@ -169,7 +173,9 @@ public class FilterStateService
     {
         if (!State.IntroductionAge.ContainsKey(days))
         {
-            var items = itemsApi.ItemsRecentGet(days);
+            var respone = itemsApi.ItemsRecentGetAsync(days).Result;
+            if (!respone.TryOk(out var items))
+                throw new CoflnetException("could_not_load", $"Could not load new items from {days} days");
             if (items == null && days == 1)
                 return new HashSet<string>(); // handled via known tags
             if (items == null)

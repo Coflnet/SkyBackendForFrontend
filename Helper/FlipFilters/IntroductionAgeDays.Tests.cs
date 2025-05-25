@@ -17,9 +17,19 @@ public class IntroductionAgeDaysTests
     {
         var mock = new Mock<IItemsApi>();
         DiHandler.OverrideService<FilterStateService, FilterStateService>(new FilterStateService(
-            NullLogger<FilterStateService>.Instance,new Mock<Mayor.Client.Api.IMayorApi>().Object,mock.Object));
-        mock.Setup(x => x.ItemsRecentGet(1, 0)).Returns(new List<string>() { "different" });
-        ItemDetails.Instance.TagLookup = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(
+            NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, mock.Object));
+        var mockResponse = new Mock<IItemsRecentGetApiResponse>();
+        mockResponse.Setup(x => x.TryOk(out It.Ref<List<string>>.IsAny))
+            .Returns((out List<string> data) =>
+            {
+                data = new List<string>() { "different" };
+                return true;
+            });
+        mock.Setup(x => x.ItemsRecentGetAsync(1, default)).ReturnsAsync(mockResponse.Object);
+
+        DiHandler.OverrideService<ItemDetails, ItemDetails>(new ItemDetails(null)
+        {
+            TagLookup = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(
             new Dictionary<string, int>() {
                 { "different", 1 },
                 { "diff2", 1 },
@@ -32,14 +42,14 @@ public class IntroductionAgeDaysTests
                 { "diff9", 9},
                 { "diff10", 10},
                 { "diff11", 11}
-            }
-        );
+            })
+        });
         var filter = new IntroductionAgeDaysDetailedFlipFilter();
         var comparer = filter.GetExpression(new(new(), null), "1").Compile();
         Assert.That(comparer, Is.Not.Null);
         var flipSample = new FlipInstance() { Auction = new Core.SaveAuction() { Tag = "test" } };
         // adding new item now does not change
-        ItemDetails.Instance.TagLookup.TryAdd("test", 1);
+        DiHandler.GetService<ItemDetails>().TagLookup.TryAdd("test", 1);
         Assert.That(comparer(flipSample));
     }
 

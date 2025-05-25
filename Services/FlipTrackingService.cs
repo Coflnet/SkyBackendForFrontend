@@ -58,7 +58,8 @@ namespace Coflnet.Sky.Commands
         private IProductsApi productApi;
         private IScoresApi scoresApi;
         private ILogger<FlipTrackingService> logger;
-
+        private NBT nbt;
+        private ItemDetails itemDetails;
 
         IProducer<string, FlipEvent> producer;
 
@@ -70,7 +71,9 @@ namespace Coflnet.Sky.Commands
             IProductsApi productApi,
             Kafka.KafkaCreator kafkaCreator,
             IScoresApi scoresApi,
-            ILogger<FlipTrackingService> logger)
+            ILogger<FlipTrackingService> logger,
+            NBT nBT,
+            ItemDetails itemDetails)
         {
             producer = kafkaCreator?.BuildProducer<string, FlipEvent>();
 
@@ -85,6 +88,8 @@ namespace Coflnet.Sky.Commands
             _ = kafkaCreator?.CreateTopicIfNotExist(ProduceTopic, 6);
             this.scoresApi = scoresApi;
             this.logger = logger;
+            nbt = nBT;
+            this.itemDetails = itemDetails;
         }
 
 
@@ -300,7 +305,7 @@ namespace Coflnet.Sky.Commands
                 // only include flips that were bought shortly after being reported
                 //buyList = buyList.Where(a => !flips.TryGetValue(a.UId, out Flip f) || f.Timestamp < a.End && f.Timestamp > a.End - TimeSpan.FromSeconds(50)).ToList();
 
-                var uidKey = NBT.Instance.GetKeyId("uid");
+                var uidKey = nbt.GetKeyId("uid");
                 var buyLookup = buyList
                     .Where(a => a.NBTLookup.Where(l => l.KeyId == uidKey).Any())
                     .GroupBy(a =>
@@ -521,7 +526,7 @@ namespace Coflnet.Sky.Commands
             if (b.Tier < sell.Tier)
                 if (sell.Tag.StartsWith("PET_"))
                 {
-                    if (sell.NBTLookup.Where(l => l.KeyId == NBT.Instance.GetKeyId("heldItem") && l.Value == ItemDetails.Instance.GetItemIdForTag("TIER_BOOST")).Any())
+                    if (sell.NBTLookup.Where(l => l.KeyId == nbt.GetKeyId("heldItem") && l.Value == itemDetails.GetItemIdForTag("TIER_BOOST")).Any())
                         yield return new("Tier Boost cost", priceService.GetTierBoostCost());
                     else
                     {

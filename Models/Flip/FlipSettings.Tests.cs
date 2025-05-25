@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Coflnet.Sky.Filter;
 using System.Linq;
 using FluentAssertions;
+using System.Collections.Generic;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -21,7 +22,7 @@ namespace Coflnet.Sky.Commands.Shared
         [SetUp]
         public void Setup()
         {
-            DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine());
+            DiHandler.OverrideService<FilterEngine, FilterEngine>(new FilterEngine(new FlipFilterTests.NBTMock()));
             flipA = new FlipInstance()
             {
                 Auction = new SaveAuction()
@@ -98,8 +99,6 @@ namespace Coflnet.Sky.Commands.Shared
                     }}
                 },
             };
-
-            NBT.Instance = new MockNbt();
         }
 
         private static void CreateLookup(FlipInstance flip)
@@ -343,18 +342,4 @@ namespace Coflnet.Sky.Commands.Shared
             var options = updater.Options();
         }
     }
-
-    public class MockNbt : INBT
-    {
-        public short GetKeyId(string name)
-        {
-            return 1;
-        }
-
-        public int GetValueId(short key, string value)
-        {
-            return 2;
-        }
-    }
-
 }
