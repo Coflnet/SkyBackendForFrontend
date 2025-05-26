@@ -68,7 +68,7 @@ public class FilterStateService
         {
             try
             {
-                GetItemCategory(item);
+                await GetItemCategory(item);
             }
             catch (Exception e)
             {

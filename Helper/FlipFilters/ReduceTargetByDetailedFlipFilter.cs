@@ -11,7 +11,7 @@ public class ReduceTargetByDetailedFlipFilter : NumberDetailedFlipFilter
 {
     public override object[] Options => [0, 50_000_000_000];
 
-    public FilterType FilterType => FilterType.NUMERICAL;
+    public override FilterType FilterType => FilterType.NUMERICAL;
 
     public override Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {

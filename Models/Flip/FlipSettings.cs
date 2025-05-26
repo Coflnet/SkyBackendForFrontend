@@ -83,7 +83,6 @@ namespace Coflnet.Sky.Commands.Shared
         [SettingsDoc("The config this settings is based on, loads in addition", true)]
         public string BasedConfig;
 
-        private List<FlipFilter> blackListFilters;
         private ListMatcher BlackListMatcher;
         private ListMatcher ForcedBlackListMatcher;
         private ListMatcher WhiteListMatcher;
@@ -321,7 +320,6 @@ namespace Coflnet.Sky.Commands.Shared
                    FastMode == settings.FastMode &&
                    Changer == settings.Changer &&
                    OnlyBin == settings.OnlyBin &&
-                   EqualityComparer<List<FlipFilter>>.Default.Equals(blackListFilters, settings.blackListFilters) &&
                    EqualityComparer<ListMatcher>.Default.Equals(BlackListMatcher, settings.BlackListMatcher) &&
                    EqualityComparer<ListMatcher>.Default.Equals(WhiteListMatcher, settings.WhiteListMatcher);
         }
@@ -343,7 +341,6 @@ namespace Coflnet.Sky.Commands.Shared
             hash.Add(FastMode);
             hash.Add(Changer);
             hash.Add(OnlyBin);
-            hash.Add(blackListFilters);
             hash.Add(BlackListMatcher);
             hash.Add(WhiteListMatcher);
             return hash.ToHashCode();
