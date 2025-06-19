@@ -248,6 +248,8 @@ namespace Coflnet.Sky.Commands.Shared
                 return;
             if (long.TryParse(search, out long uid))
             {
+                if (uid < 1000 && uid > 0)
+                    return; // probably not a uid
                 Console.WriteLine("detected uid " + uid);
                 using (var context = new HypixelContext())
                 {
@@ -262,7 +264,7 @@ namespace Coflnet.Sky.Commands.Shared
                     }
                     catch (Exception e)
                     {
-                        dev.Logger.Instance.Error(e, "adding auction");
+                        dev.Logger.Instance.Error(e, "adding auction for search " + search);
                     }
                 }
             }
@@ -305,7 +307,10 @@ namespace Coflnet.Sky.Commands.Shared
             });
             var key = nBT.GetKeyId("uid");
             var filter = new Dictionary<string, string>();
-            filter["UId"] = auction.NBTLookup.Where(l => l.KeyId == key).FirstOrDefault().Value.ToString("X");
+            var uid = auction.NBTLookup.Where(l => l.KeyId == key).FirstOrDefault();
+            if (uid == null)
+                return;
+            filter["UId"] = uid.Value.ToString("X");
             AddFilterResult(Results, filter, auction.ItemName + " (Sells)", auction.Tag, 100_000);
         }
 
