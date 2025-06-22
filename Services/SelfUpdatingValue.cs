@@ -67,6 +67,9 @@ namespace Coflnet.Sky.Commands.Shared
             subTask?.Unsubscribe();
             subTask = null;
             Value = default;
+            AfterChange = null;
+            OnChange = null;
+            ShouldPreventUpdate = null;
         }
 
         /// <summary>
