@@ -46,7 +46,7 @@ namespace Coflnet.Sky.Commands
 
     public partial class FlipTrackingService : IFlipTrackingService
     {
-        public TrackerApi flipTracking;
+        public TrackerApi flipTracking { get; }
         private AnalyseApi flipAnalyse;
 
         //public static FlipTrackingService Instance = new FlipTrackingService();
@@ -385,25 +385,7 @@ namespace Coflnet.Sky.Commands
             var newFlips = relevantFlips.Select(e =>
             {
                 var f = e.Flip;
-                return new FlipDetails()
-                {
-                    BuyTime = f.PurchaseTime,
-                    Finder = Enum.TryParse<LowPricedAuction.FinderType>(f.FinderType.ToString().Replace("SNIPERMEDIAN", "SNIPER_MEDIAN"), true, out var finder) ? finder : LowPricedAuction.FinderType.UNKOWN,
-                    ItemName = f.ItemName,
-                    ItemTag = f.ItemTag,
-                    OriginAuction = f.PurchaseAuctionId.ToString("N"),
-                    PricePaid = f.PurchaseCost,
-                    SellTime = f.SellTime,
-                    SoldAuction = f.SellAuctionId.ToString("N"),
-                    SoldFor = f.SellPrice,
-                    Tier = f.ItemTier.ToString(),
-                    uId = f.Uid,
-                    PropertyChanges = f.ProfitChanges.Select(c => new PropertyChange(c.Label, c.Amount)).ToList(),
-                    Profit = f.Profit,
-                    // flag enum converted to array
-                    Flags = (Shared.FlipFlags)f.Flags,
-                    Seller = e.uuid
-                };
+                return Convert(f);
             }).ToArray();
             foreach (var uuid in uuids)
             {
@@ -423,6 +405,29 @@ namespace Coflnet.Sky.Commands
             {
                 Flips = newFlips,
                 TotalProfit = profit
+            };
+        }
+
+        public static FlipDetails Convert(PastFlip f)
+        {
+            return new FlipDetails()
+            {
+                BuyTime = f.PurchaseTime,
+                Finder = Enum.TryParse<LowPricedAuction.FinderType>(f.FinderType.ToString().Replace("SNIPERMEDIAN", "SNIPER_MEDIAN"), true, out var finder) ? finder : LowPricedAuction.FinderType.UNKOWN,
+                ItemName = f.ItemName,
+                ItemTag = f.ItemTag,
+                OriginAuction = f.PurchaseAuctionId.ToString("N"),
+                PricePaid = f.PurchaseCost,
+                SellTime = f.SellTime,
+                SoldAuction = f.SellAuctionId.ToString("N"),
+                SoldFor = f.SellPrice,
+                Tier = f.ItemTier.ToString(),
+                uId = f.Uid,
+                PropertyChanges = f.ProfitChanges.Select(c => new PropertyChange(c.Label, c.Amount)).ToList(),
+                Profit = f.Profit,
+                // flag enum converted to array
+                Flags = (Shared.FlipFlags)f.Flags,
+                Seller = f.Flipper.ToString("N"),
             };
         }
 
