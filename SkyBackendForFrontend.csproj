@@ -19,7 +19,7 @@
   <ItemGroup>
     <PackageReference Include="Coflnet.Leaderboard.Client" Version="0.3.1" />
     <PackageReference Include="Coflnet.Sky.Auctions.Client" Version="0.1.2" />
-    <PackageReference Include="Coflnet.Sky.Bazaar.Flipper.Client" Version="0.1.2" />
+    <PackageReference Include="Coflnet.Sky.Bazaar.Flipper.Client" Version="0.2.0" />
     <PackageReference Include="Coflnet.Sky.Mayor.Client" Version="0.3.3" />
     <PackageReference Include="Coflnet.Payments.Client" Version="0.16.1" />
     <PackageReference Include="Coflnet.Sky.McConnect" Version="0.5.0" />
@@ -28,7 +28,7 @@
     <PackageReference Include="Coflnet.Sky.FlipTracker.Client" Version="0.15.0" />
     <PackageReference Include="Fastenshtein" Version="1.0.10" />
     <PackageReference Include="Coflnet.Sky.Settings.Client" Version="0.2.3" />
-    <PackageReference Include="Coflnet.Sky.Crafts.Client" Version="0.6.0" />
+    <PackageReference Include="Coflnet.Sky.Crafts.Client" Version="0.7.0" />
     <PackageReference Include="Coflnet.Sky.Bazaar.Client" Version="0.4.2" />
     <PackageReference Include="Coflnet.Sky.Referral.Client" Version="1.0.0" />
     <PackageReference Include="Coflnet.Sky.Sniper.Client" Version="0.12.0" />
