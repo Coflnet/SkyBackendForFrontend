@@ -15,4 +15,6 @@ public class AccountSettings
     public int BaseConfigVersion;
     [DataMember(Name = "autoUpdateConfig")]
     public bool AutoUpdateConfig = true;
+    [DataMember(Name = "getLowballs")]
+    public bool GetLowballs = false;
 }
