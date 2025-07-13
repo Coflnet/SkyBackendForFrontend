@@ -69,6 +69,6 @@ public partial class AverageTimeToSellDetailedFlipFilter : VolumeDetailedFlipFil
         return f.Volume;
     }
 
-    [System.Text.RegularExpressions.GeneratedRegex(@"([\d\.?\d?mhdw]+[^-]?)")]
+    [System.Text.RegularExpressions.GeneratedRegex(@"([\d+\.?\d?mhdw]+[^-]?)")]
     private static partial System.Text.RegularExpressions.Regex TimeSelect();
 }
