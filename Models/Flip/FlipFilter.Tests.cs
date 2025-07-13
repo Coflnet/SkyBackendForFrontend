@@ -441,6 +441,11 @@ namespace Coflnet.Sky.Commands.Shared
                 throw new NotImplementedException();
             }
 
+            public long GetItemIdForSkin(string name)
+            {
+                throw new NotImplementedException();
+            }
+
             public short GetKeyId(string name)
             {
                 return 1;
