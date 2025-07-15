@@ -62,11 +62,11 @@ namespace Coflnet.Sky.Commands.Shared
             var bazaarItems = await GetBazaarItems();
             if (bazaarItems?.Contains(itemTag) ?? false)
             {
-                var val = await bazaarClient.ApiBazaarItemIdHistoryGetAsync(itemTag, DateTime.UtcNow - TimeSpan.FromDays(days), DateTime.UtcNow);
+                var val = await bazaarClient.GetHistoryGraphAsync(itemTag, DateTime.UtcNow - TimeSpan.FromDays(days), DateTime.UtcNow);
                 if (val == null)
                     return null;
                 if (val.Count() == 0)
-                    val = await bazaarClient.ApiBazaarItemIdHistoryGetAsync(itemTag, DateTime.UtcNow - TimeSpan.FromDays(0.9), DateTime.UtcNow);
+                    val = await bazaarClient.GetHistoryGraphAsync(itemTag, DateTime.UtcNow - TimeSpan.FromDays(0.9), DateTime.UtcNow);
                 if (val.Count() == 0)
                     return new();
                 return new PriceSumary()
@@ -178,7 +178,7 @@ namespace Coflnet.Sky.Commands.Shared
 
             if (dbResult.Count == 0)
             {
-                var result = await bazaarClient.ApiBazaarItemIdHistoryGetAsync(itemTag, start, end);
+                var result = await bazaarClient.GetHistoryGraphAsync(itemTag, start, end);
                 return result.Select(i => new AveragePrice()
                 {
                     Volume = (int)i.BuyVolume,
@@ -216,10 +216,10 @@ namespace Coflnet.Sky.Commands.Shared
             var bazaarItems = await GetBazaarItems();
             if (bazaarItems?.Contains(itemTag) ?? false)
             {
-                var val = await bazaarClient.ApiBazaarItemIdSnapshotGetAsync(itemTag, DateTime.UtcNow);
+                var val = await bazaarClient.GetClosestToAsync(itemTag, DateTime.UtcNow);
                 if (val == null)
                 {
-                    var all = await bazaarClient.ApiBazaarPricesGetAsync();
+                    var all = await bazaarClient.GetAllPricesAsync();
                     return all.Where(a => a.ProductId == itemTag).Select(a => new CurrentPrice()
                     {
                         Buy = a.BuyPrice * count,
