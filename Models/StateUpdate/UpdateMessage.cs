@@ -73,9 +73,17 @@ public class ChestView
     /// All items in the ui view
     /// </summary>
     [Key(0)]
-    public List<Item> Items = new ();
+    public List<Item> Items = new();
+    /// <summary>
+    /// The name of the chest
+    /// </summary>
     [Key(1)]
     public string Name;
+    /// <summary>
+    /// The position of the chest (if inventory is, also, a chest)
+    /// </summary>
+    [Key(2)]
+    public BlockPos Position;
 }
 
 
