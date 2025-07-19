@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using Coflnet.Sky.Core.Services;
 using Coflnet.Sky.Core;
 using Microsoft.EntityFrameworkCore;
-using System;
 using NUnit.Framework;
 using Moq;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,6 +21,7 @@ public class MuseumServiceTests
     public void Setup()
     {
     }
+
     [Test]
     public async Task ArmrorSetExclude()
     {
