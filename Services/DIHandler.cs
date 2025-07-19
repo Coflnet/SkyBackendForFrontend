@@ -177,6 +177,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<PremiumService>();
             services.AddSingleton<ISniperClient, SniperClient>();
             services.AddSingleton<EventBrokerClient>();
+            services.AddSingleton<MinionService>();
             services.AddSingleton<ISubscriptionsApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
