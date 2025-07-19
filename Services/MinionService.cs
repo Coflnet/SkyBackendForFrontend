@@ -33,13 +33,15 @@ public class MinionService
 
             foreach (var product in minion.Products)
             {
+                if (product.Tag == null)
+                    continue; // Skip if tag is not set
                 if (itemPrices.TryGetValue(product.Tag, out var price))
                 {
                     profitPerAction += price * product.PerTime;
                     npcProfitPerAction += product.NpcPrice * product.PerTime;
                 }
             }
-            var costForTopTier = minion.Upgrade.Sum(x => x.Sum(y => itemPrices.TryGetValue(y.Tag, out var price) ? price * y.Quanity : 0));
+            var costForTopTier = minion.Upgrade.Sum(x => x.Sum(y => y?.Tag != null && itemPrices.TryGetValue(y.Tag, out var price) ? price * y.Quanity : 0));
             profitPerDay = profitPerAction * 24 * 3600 / minion.TierDelay.Last();
             nbcSellPerDay = npcProfitPerAction * 24 * 3600 / minion.TierDelay.Last();
 
