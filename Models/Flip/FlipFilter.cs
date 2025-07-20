@@ -79,6 +79,9 @@ namespace Coflnet.Sky.Commands.Shared
             AdditionalFilters.Add<HasRuneDetailedFlipFilter>();
             AdditionalFilters.Add<IsFarmingItemDetailedFlipFilter>();
             AdditionalFilters.Add<EstProfitPerHourDetailedFlipFilter>();
+            AdditionalFilters.Add<ScorpiusDaysFilter>();
+            AdditionalFilters.Add<DerpyDaysFilter>();
+            AdditionalFilters.Add<JerryDaysFilter>();
         }
 
         public FlipFilter(Dictionary<string, string> originalf, IPlayerInfo playerInfo)

@@ -57,7 +57,7 @@ namespace Coflnet.Sky.Commands.Shared
             return (long)(targetPrice * (100 - reduction) / 100 - cost);
         }
 
-        static DateTime DerpyStart = new DateTime(2024, 8, 26, 7, 15, 0);
+        public readonly static DateTime DerpyStart = new DateTime(2024, 8, 26, 7, 15, 0);
         public static float GetFeeRateForStartingBid(long targetPrice, DateTime? date = null)
         {
             date ??= DateTime.UtcNow;

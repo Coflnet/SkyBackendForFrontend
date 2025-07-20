@@ -13,6 +13,7 @@ namespace Coflnet.Sky.Commands.Shared
     {
         public virtual object[] Options => [1, 50_000_000_000];
         public virtual FilterType FilterType => FilterType.NUMERICAL | FilterType.RANGE;
+        public virtual bool CanCache => true;
         public virtual Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string content)
         {
             var selector = GetSelector(filters);
