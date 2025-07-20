@@ -72,7 +72,7 @@ public class MinionService
 )
     {
         [JsonPropertyName("tag")]
-        public string Tag { get; internal set; }
+        public string Tag { get; set; }
     }
 
 
@@ -99,7 +99,7 @@ public class MinionService
     )
     {
         [JsonPropertyName("tag")]
-        public string Tag { get; internal set; }
+        public string Tag { get; set; }
     }
 
 }
