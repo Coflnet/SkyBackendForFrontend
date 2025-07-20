@@ -66,6 +66,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<UpgradePriceService>();
             //services.AddHostedService<UpgradePriceService>(di => di.GetRequiredService<UpgradePriceService>());
             services.AddSingleton<FlipTrackingService>();
+            services.AddSingleton<IFlipTrackingService>(di => di.GetRequiredService<FlipTrackingService>());
             services.AddPaymentSingleton<ProductsApi>(url => new ProductsApi(url));
             services.AddPaymentSingleton<UserApi>(url => new UserApi(url));
             services.AddPaymentSingleton<TopUpApi>(url => new TopUpApi(url));
