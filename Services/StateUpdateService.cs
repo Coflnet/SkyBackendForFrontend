@@ -29,7 +29,9 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 if (isNull || key.Length < 3)
                     return Random.Shared.Next() % pcount;
-                byte[] encoded = SHA256.HashData(key.ToArray().TakeWhile(c => c != '-').Select(c => (byte)c).ToArray());
+                // there 1 byte prefixed to the key, so we skip it to figure out the playerId
+                var name = key.ToArray().Skip(1).TakeWhile(c => c != '-').Select(c => (byte)c).ToArray();
+                byte[] encoded = SHA256.HashData(name);
                 int partition = BitConverter.ToUInt16(encoded, 0) % pcount;
                 return partition;
             }));
