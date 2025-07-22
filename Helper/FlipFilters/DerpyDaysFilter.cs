@@ -6,19 +6,19 @@ using Coflnet.Sky.Filter;
 namespace Coflnet.Sky.Commands.Shared;
 
 [FilterDescription("Days until next Derpy, gets calculated once on load")]
-public class DerpyDaysFilter : DaysTillSpecialMayorFilter
+public class DerpyDaysDetailedFlipFilter : DaysTillSpecialMayorFilter
 {
     protected override DateTime MayorStart => FlipInstance.DerpyStart;
 }
 
 [FilterDescription("Days until next Scorpius, gets calculated once on load")]
-public class ScorpiusDaysFilter : DaysTillSpecialMayorFilter
+public class ScorpiusDaysDetailedFlipFilter : DaysTillSpecialMayorFilter
 {
     protected override DateTime MayorStart => FlipInstance.DerpyStart.AddHours(124 * 8 * 2); // Scorpius starts 2 mayor cycles after Derpy
 }
 
 [FilterDescription("Days until next Jerry, gets calculated once on load")]
-public class JerryDaysFilter : DaysTillSpecialMayorFilter
+public class JerryDaysDetailedFlipFilter : DaysTillSpecialMayorFilter
 {
     protected override DateTime MayorStart => FlipInstance.DerpyStart.AddHours(124 * 8); // Jerry starts 1 mayor cycles after Derpy
 }
