@@ -403,11 +403,16 @@ namespace Coflnet.Sky.Commands.Shared
                         cache.lastUsed = DateTime.Now;
                         continue;
                     }
+                    var cacheAble = true;
                     foreach (var element in item)
                     {
                         try
                         {
                             isMatch.AddOrUpdate(item.Key, element.GetExpression(playerInfo), (k, old) => old.Or(element.GetExpression(playerInfo)));
+                            if (!element.IsCacheAble())
+                            {
+                                cacheAble = false;
+                            }
                         }
                         catch (Exception e)
                         {
@@ -419,7 +424,7 @@ namespace Coflnet.Sky.Commands.Shared
                     if (!cacheKey.Contains(nameof(UserPremiumTier), StringComparison.CurrentCultureIgnoreCase)
                         && !cacheKey.Contains(nameof(ConnectedMcUserDetailedFlipFilter), StringComparison.CurrentCultureIgnoreCase)
                         && !cacheKey.Contains(nameof(ListingSlotsLeft), StringComparison.CurrentCultureIgnoreCase)
-                        && !cacheKey.Contains(nameof(PurseDetailedFlipFilter), StringComparison.CurrentCultureIgnoreCase))
+                        && cacheAble)
                         matcherLookup.TryAdd(cacheKey, new CacheEntry { matcher = matcher, lastUsed = DateTime.Now });
                 }
                 if (matcherLookup.Count > 10_000)

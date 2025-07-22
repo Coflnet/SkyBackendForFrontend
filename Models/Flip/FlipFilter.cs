@@ -16,6 +16,7 @@ namespace Coflnet.Sky.Commands.Shared
         private Func<SaveAuction, bool> Filters;
         private Func<FlipInstance, bool> FlipFilters = null;
         Expression<Func<FlipInstance, bool>> expression = null;
+        public bool IsCacheAble { get; } = true;
 
         public static CamelCaseNameDictionary<DetailedFlipFilter> AdditionalFilters { private set; get; } = new();
 
@@ -107,6 +108,10 @@ namespace Coflnet.Sky.Commands.Shared
                             expression = newPart;
                         else if (newPart != null)
                             expression = newPart.And(expression);
+                        if (AdditionalFilters[item] is NumberDetailedFlipFilter numFilter && !numFilter.CanCache)
+                        {
+                            IsCacheAble = false;
+                        }
                     }
                     catch (CoflnetException)
                     {

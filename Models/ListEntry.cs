@@ -28,6 +28,7 @@ namespace Coflnet.Sky.Commands.Shared
         public bool Disabled;
 
         private Func<FlipInstance, bool> filterCache;
+        private bool _isCacheAble;
 
         public bool MatchesSettings(FlipInstance flip, IPlayerInfo playerInfo)
         {
@@ -40,9 +41,15 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (Disabled)
                 return f => false;
-            var filterCache = new FlipFilter(filter, playerInfo);
+            var filters = new FlipFilter(filter, playerInfo);
+            _isCacheAble = filters.IsCacheAble;
             //     Expression<Func<FlipInstance,bool>> normal = (flip) => (ItemTag == null || ItemTag == flip.Auction.Tag);
-            return filterCache.GetExpression();
+            return filters.GetExpression();
+        }
+
+        public bool IsCacheAble()
+        {
+            return _isCacheAble;
         }
 
         public override bool Equals(object obj)
