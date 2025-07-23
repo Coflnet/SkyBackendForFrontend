@@ -243,7 +243,8 @@
             19,
             14.5,
             14.5,
-            10
+            10,
+            8
         ],
         "storage": [
             64,
@@ -255,6 +256,7 @@
             576,
             768,
             768,
+            960,
             960,
             960
         ],
@@ -754,8 +756,8 @@
             192,
             320,
             320,
-            384,
-            384,
+            448,
+            448,
             576,
             576,
             768,
@@ -2019,9 +2021,9 @@
             12
         ],
         "storage": [
-            64,
-            192,
-            192,
+            128,
+            256,
+            256,
             384,
             384,
             576,
@@ -4505,7 +4507,8 @@
             24,
             20,
             20,
-            16
+            16,
+            14
         ],
         "storage": [
             64,
@@ -4517,6 +4520,7 @@
             576,
             768,
             768,
+            960,
             960,
             960
         ],
@@ -4904,9 +4908,9 @@
             13
         ],
         "storage": [
-            64,
-            192,
-            192,
+            128,
+            256,
+            256,
             384,
             384,
             576,
@@ -6557,7 +6561,8 @@
             62.5,
             53,
             53,
-            35
+            35,
+            30
         ],
         "storage": [
             640,
@@ -6570,6 +6575,7 @@
             832,
             832,
             896,
+            960,
             960
         ],
         "type": null,
@@ -6742,6 +6748,7 @@
             576,
             768,
             768,
+            960,
             960,
             960
         ],
@@ -8044,17 +8051,17 @@
     {
         "name": "Inferno Minion",
         "tierDelay": [
-            1102,
-            1068,
-            1033,
-            999,
-            964,
-            930,
-            895,
-            861,
-            827,
+            1013,
+            982,
+            950,
+            919,
+            886,
+            855,
+            823,
             792,
-            792
+            760,
+            728,
+            697
         ],
         "storage": [
             64,
@@ -8222,6 +8229,131 @@
                 "exp": null,
                 "expType": null,
                 "tag": "GABAGOOL_THE_FISH"
+            }
+        ]
+    },
+    {
+        "name": "Vampire Minion",
+        "tierDelay": [
+            190,
+            190,
+            175,
+            175,
+            160,
+            160,
+            140,
+            140,
+            117,
+            117,
+            95
+        ],
+        "storage": [
+            64,
+            192,
+            192,
+            384,
+            384,
+            576,
+            576,
+            768,
+            768,
+            960,
+            960
+        ],
+        "type": "Combat",
+        "upgrade": [
+            [],
+            [
+                {
+                    "itemName": "Bat Person Helmet",
+                    "quantity": 1,
+                    "tag": "BAT_PERSON_HELMET"
+                },
+                {
+                    "itemName": "Hemovibe",
+                    "quantity": 80,
+                    "tag": "HEMOVIBE"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemovibe",
+                    "quantity": 160,
+                    "tag": "HEMOVIBE"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemovibe",
+                    "quantity": 320,
+                    "tag": "HEMOVIBE"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemovibe",
+                    "quantity": 512,
+                    "tag": "HEMOVIBE"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 8,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 16,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 32,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 64,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 128,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 256,
+                    "tag": "HEMOGLASS"
+                }
+            ],
+            [
+                {
+                    "itemName": "Hemoglass",
+                    "quantity": 512,
+                    "tag": "HEMOGLASS"
+                }
+            ]
+        ],
+        "products": [
+            {
+                "itemName": "Hemovibe",
+                "perTime": 1,
+                "npcPrice": 100,
+                "exp": 5,
+                "expType": "Combat",
+                "tag": "HEMOVIBE"
             }
         ]
     }

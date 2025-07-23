@@ -80,9 +80,9 @@ public class MinionService
         [property: JsonProperty("name")]
         [property: JsonPropertyName("name")] string Name,
         [property: JsonProperty("tierDelay")]
-        [property: JsonPropertyName("tierDelay")] IReadOnlyList<double> TierDelay,
+        [property: JsonPropertyName("tierDelay")] List<double> TierDelay,
         [property: JsonProperty("storage")]
-        [property: JsonPropertyName("storage")] IReadOnlyList<int> Storage,
+        [property: JsonPropertyName("storage")] List<int> Storage,
         [property: JsonProperty("type")]
         [property: JsonPropertyName("type")] string Type,
         [property: JsonProperty("upgrade")]
