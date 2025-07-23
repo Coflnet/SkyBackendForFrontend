@@ -83,7 +83,12 @@ public class ChestView
     /// The position of the chest (if inventory is, also, a chest)
     /// </summary>
     [Key(2)]
-    public BlockPos Position;
+    public BlockPos? Position;
+    /// <summary>
+    /// The time when the chest was opened (or server receive time)
+    /// </summary>
+    [Key(3)]
+    public DateTime OpenedAt;
 }
 
 
