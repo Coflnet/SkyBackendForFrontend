@@ -23,7 +23,7 @@ public class DescriptionSetting
     public bool DisableHighlighting;
     [SettingsDoc("Disable all sign input suggestions")]
     public bool DisableSuggestions;
-    [SettingsDoc("Disable side info display in these menus")]
+    [SettingsDoc("Disable side info display in these menus", "nosuggest")]
     public HashSet<string> DisableInfoIn;
 
     public static DescriptionSetting Default => new DescriptionSetting()
