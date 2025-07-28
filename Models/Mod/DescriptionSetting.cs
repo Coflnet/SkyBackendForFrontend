@@ -21,9 +21,9 @@ public class DescriptionSetting
     public long MinProfitForHighlight;
     [SettingsDoc("Disable all highlighting")]
     public bool DisableHighlighting;
-    [SettingsDoc("Disable all sign input suggestions")]
+    [SettingsDoc("Disable all sign input suggestions", "nosuggest")]
     public bool DisableSuggestions;
-    [SettingsDoc("Disable side info display in these menus", "nosuggest")]
+    [SettingsDoc("Disable side info display in these menus, will add any menu you type into this setting, to remove prefix with `rm `, `clear` is also an option")]
     public HashSet<string> DisableInfoIn;
 
     public static DescriptionSetting Default => new DescriptionSetting()

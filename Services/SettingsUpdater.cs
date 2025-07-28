@@ -42,7 +42,9 @@ namespace Coflnet.Sky.Commands.Shared
             foreach (var item in fields)
             {
                 var isDictionary = item.FieldType.IsGenericType && item.FieldType.GetGenericTypeDefinition() == typeof(Dictionary<,>);
-                if (!item.FieldType.IsPrimitive && item.FieldType != typeof(string) && !item.FieldType.IsEnum && !item.FieldType.IsArray && !isDictionary)
+                var isHashSet = item.FieldType.IsGenericType && item.FieldType.GetGenericTypeDefinition() == typeof(HashSet<>);
+                if (!item.FieldType.IsPrimitive && item.FieldType != typeof(string) && !item.FieldType.IsEnum && !item.FieldType.IsArray
+                    && !isDictionary && !isHashSet)
                 {
                     continue;
                 }
@@ -300,6 +302,27 @@ namespace Coflnet.Sky.Commands.Shared
                     dict[parts[0]] = parts[1];
                     return parts[1];
                 }
+            }
+            else if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(HashSet<>))
+            {
+                var set = (HashSet<string>)field.GetValue(obj);
+                if (set == null)
+                {
+                    set = new HashSet<string>();
+                    field.SetValue(obj, set);
+                }
+                if (value == "clear")
+                {
+                    set.Clear();
+                    return null;
+                }
+                if (value.StartsWith("rm "))
+                {
+                    set.Remove(value.Substring(3));
+                    return null;
+                }
+                set.Add(value);
+                return value;
             }
             else
                 try
