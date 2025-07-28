@@ -41,7 +41,7 @@ namespace Coflnet.Sky.Commands.Shared
                 return;
             }
             var rarities = new string[] { "PERFECT", "FLAWLESS" };
-            var types = new string[] { "RUBY", "JASPER", "JADE", "TOPAZ", "AMETHYST", "AMBER", "SAPPHIRE", "OPAL" };
+            var types = new string[] { "RUBY", "JASPER", "JADE", "TOPAZ", "AMETHYST", "AMBER", "SAPPHIRE", "OPAL", "AQUAMARINE", "CITRINE", "ONYX", "PERIDOT" };
             await LoadNameLookups(rarities, types);
 
             while (!stoppingToken.IsCancellationRequested)
