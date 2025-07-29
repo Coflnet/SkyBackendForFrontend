@@ -106,5 +106,8 @@ namespace Coflnet.Sky.Commands.Shared
         [SettingsDoc($"Disables spam protection. By default only ~5 most valuable flips are shown that fit the settings. CAUTION: This can lead to spam flips")]
         [DataMember(Name = "disableSpamProtection")]
         public bool DisableSpamProtection;
+        [SettingsDoc("Purchasing more than this percenatage of flips on an item will temp blacklist the item, eg if you see 8 and buy 4 the rate is 50", "maxFlipPercentage")]
+        [DataMember(Name = "tempBlacklistThreshold")]
+        public int TempBlacklistThreshold { get; set; } = 20;
     }
 }
