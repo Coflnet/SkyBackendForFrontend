@@ -108,6 +108,6 @@ namespace Coflnet.Sky.Commands.Shared
         public bool DisableSpamProtection;
         [SettingsDoc("Purchasing more than this percenatage of flips on an item will temp blacklist the item, eg if you see 8 and buy 4 the rate is 50", "maxFlipPercentage")]
         [DataMember(Name = "tempBlacklistThreshold")]
-        public int TempBlacklistThreshold { get; set; } = 20;
+        public int TempBlacklistThreshold = 20;
     }
 }
