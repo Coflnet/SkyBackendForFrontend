@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Castle.Components.DictionaryAdapter.Xml;
 using Coflnet.Sky.Commands.Shared;
+using Coflnet.Sky.Core;
 
 namespace Coflnet.Sky.Api.Models.Mod;
 
@@ -40,4 +42,13 @@ public class DescriptionSetting
     public byte LowballMedUndercut;
     [SettingsDoc("Mow many percent to undercut the lbin price when lowballing, for items below 10m this is increased by 2% for items above 100m this is decreased by 2%, under 1 volume will also increase this by another 3%", "lbinUndercut")]
     public byte LowballLbinUndercut = 10;
+
+    public HighlightInfo HighlightInfo { get; set; }
+}
+
+public class HighlightInfo
+{
+    public BlockPos Position { get; set; }
+    public string HexColor { get; set; } = "#00FF00";
+    public string Chestname { get; set; } = "Highlight";
 }
