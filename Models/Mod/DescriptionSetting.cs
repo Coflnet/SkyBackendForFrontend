@@ -35,5 +35,9 @@ public class DescriptionSetting
     };
 
     [SettingsDoc("If the extra lore should be displayed or not")]
-    public bool Disabled { get; set; }
+    public bool Disabled;
+    [SettingsDoc("Mow many percent to undercut the median price when lowballing, the lower of median and lbin will be used, setting this setting to 1 or more will hide the note in the lowballing info", "medUndercut")]
+    public byte LowballMedUndercut;
+    [SettingsDoc("Mow many percent to undercut the lbin price when lowballing, for items below 10m this is increased by 2% for items above 100m this is decreased by 2%, under 1 volume will also increase this by another 3%", "lbinUndercut")]
+    public byte LowballLbinUndercut = 10;
 }
