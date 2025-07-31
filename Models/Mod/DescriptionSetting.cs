@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Castle.Components.DictionaryAdapter.Xml;
 using Coflnet.Sky.Commands.Shared;
 using Coflnet.Sky.Core;
 
