@@ -50,5 +50,6 @@ public class HighlightInfo
 {
     public BlockPos Position { get; set; }
     public string HexColor { get; set; } = "#00FF00";
+    public int SlotId { get; set; } = -1;
     public string Chestname { get; set; } = "Highlight";
 }
