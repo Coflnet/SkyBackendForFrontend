@@ -21,16 +21,8 @@ namespace Coflnet.Sky.Commands.Shared
         public bool CollectScoreboard;
         [SettingsDoc("Allow proxying of requests to api", true)]
         public bool AllowProxy;
-        [SettingsDoc("Collect which item was clicked in chest (not actually used)")]
-        public bool CollectInvClick;
         [SettingsDoc("Collect clicks on chat messages")]
         public bool CollectChatClicks;
-        [SettingsDoc("Collect which server you are on")]
-        public bool CollectLobbyChanges;
-        [SettingsDoc("Collect entities near you (1.6.x mod feature)")]
-        public bool CollectEntities;
-        [SettingsDoc("Collect player position and orientation")]
-        public bool CollectLocation;
         /// <summary>
         /// Wherever or not to send item descriptions for extending to the server
         /// </summary>
@@ -53,10 +45,7 @@ namespace Coflnet.Sky.Commands.Shared
                    CollectTab == settings.CollectTab &&
                    CollectScoreboard == settings.CollectScoreboard &&
                    AllowProxy == settings.AllowProxy &&
-                   CollectInvClick == settings.CollectInvClick &&
                    CollectChatClicks == settings.CollectChatClicks &&
-                   CollectLobbyChanges == settings.CollectLobbyChanges &&
-                   CollectEntities == settings.CollectEntities &&
                    ExtendDescriptions == settings.ExtendDescriptions &&
                    EqualityComparer<string[]>.Default.Equals(CommandPrefixes, settings.CommandPrefixes) &&
                    AutoStart == settings.AutoStart;
@@ -71,10 +60,7 @@ namespace Coflnet.Sky.Commands.Shared
             hash.Add(CollectTab);
             hash.Add(CollectScoreboard);
             hash.Add(AllowProxy);
-            hash.Add(CollectInvClick);
             hash.Add(CollectChatClicks);
-            hash.Add(CollectLobbyChanges);
-            hash.Add(CollectEntities);
             hash.Add(ExtendDescriptions);
             hash.Add(CommandPrefixes);
             hash.Add(AutoStart);
