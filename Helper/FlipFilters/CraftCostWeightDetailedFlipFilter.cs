@@ -39,6 +39,10 @@ public class CraftCostWeightDetailedFlipFilter : NumberDetailedFlipFilter
         {
             validModifiers.Add(item); // technically not all reforges can show up because of the threshold
         }
+        foreach (var item in Constants.AttributeKeys)
+        {
+            DefaultWeights.TryAdd(item, 0);
+        }
     }
 
     public override Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
@@ -57,7 +61,7 @@ public class CraftCostWeightDetailedFlipFilter : NumberDetailedFlipFilter
         foreach (var item in DefaultWeights)
         {
             var toUse = Math.Min(item.Value, defaultMultiplier);
-            if(item.Key == "cleanItem")
+            if (item.Key == "cleanItem")
                 toUse = 1;
             multipliers.TryAdd(item.Key, toUse);
         }
