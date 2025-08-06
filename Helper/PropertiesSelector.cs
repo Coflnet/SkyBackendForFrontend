@@ -86,7 +86,7 @@ namespace Coflnet.Sky.Commands.Helper
 
             var enchants = auction.Enchantments?.Where(e => (!RelEnchantLookup.ContainsKey(e.Type) && e.Level >= 6) || (RelEnchantLookup.TryGetValue(e.Type, out byte lvl)) && e.Level >= lvl).Select(e => new Property()
             {
-                Value = $"{ItemDetails.TagToName(e.Type.ToString())}: {e.Level}",
+                Value = $"{ItemDetails.TagToName(GetEnchantName(e))}: {e.Level}",
                 Rating = 2 + e.Level + (e.Type.ToString().StartsWith("ultimate") ? 5 : 0) + (e.Type == Enchantment.EnchantmentType.infinite_quiver ? -3 : 0)
             });
             if (enchants != null)
@@ -100,6 +100,15 @@ namespace Coflnet.Sky.Commands.Helper
                 properties.Add(new Property($"Module: {ItemDetails.TagToName(module)}", 15));
 
             return properties;
+        }
+
+        private static string GetEnchantName(Enchantment e)
+        {
+            return e.Type switch
+            {
+                Enchantment.EnchantmentType.dragon_hunter => "gravity", // renamed with 0.23.3 update
+                _ => e.Type.ToString()
+            };
         }
 
         // minecraft java hex color codes to chat code
