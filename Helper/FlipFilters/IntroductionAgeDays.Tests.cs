@@ -17,7 +17,7 @@ public class IntroductionAgeDaysTests
     {
         var mock = new Mock<IItemsApi>();
         DiHandler.OverrideService<FilterStateService, FilterStateService>(new FilterStateService(
-            NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, mock.Object));
+            NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApiApi>().Object, mock.Object));
         mock.Setup(x => x.ItemsRecentGetAsync(1,0, default)).ReturnsAsync(new List<string>() { "different" });
 
         DiHandler.OverrideService<ItemDetails, ItemDetails>(new ItemDetails(null)
@@ -49,7 +49,7 @@ public class IntroductionAgeDaysTests
     [Test]
     public async Task StateIsCopiedNotOverriden()
     {
-        var filterStateService = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, new Mock<IItemsApi>().Object);
+        var filterStateService = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApiApi>().Object, new Mock<IItemsApi>().Object);
         var previousReference = filterStateService.State.CurrentPerks;
         await filterStateService.UpdateState(CreateState());
         var previousIntroRef = filterStateService.State.IntroductionAge[1];

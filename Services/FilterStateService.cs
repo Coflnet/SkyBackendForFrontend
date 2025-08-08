@@ -34,11 +34,11 @@ public class FilterStateService
 
     public FilterState State { get; set; } = new FilterState();
 
-    private Sky.Mayor.Client.Api.IMayorApi mayorApi;
+    private Sky.Mayor.Client.Api.IMayorApiApi mayorApi;
     private Items.Client.Api.IItemsApi itemsApi;
     private ILogger<FilterStateService> logger;
 
-    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApi mayorApi, Items.Client.Api.IItemsApi itemsApi)
+    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApiApi mayorApi, Items.Client.Api.IItemsApi itemsApi)
     {
         this.logger = logger;
         this.mayorApi = mayorApi;

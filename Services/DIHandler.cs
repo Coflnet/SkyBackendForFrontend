@@ -152,10 +152,10 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new TrackerApi(config["FLIPTRACKER_BASE_URL"]);
             });
-            services.AddSingleton<IMayorApi>(context =>
+            services.AddSingleton<IMayorApiApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
-                return new MayorApi(config["MAYOR_BASE_URL"]);
+                return new MayorApiApi(config["MAYOR_BASE_URL"]);
             });
             services.AddSingleton<IScoresApi, ScoresApi>(context =>
             {
