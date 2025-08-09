@@ -81,7 +81,10 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (UserId == null)
             {
+                ShouldPreventUpdate?.Invoke(newValue);
+                OnChange?.Invoke(newValue);
                 Value = newValue;
+                AfterChange?.Invoke(newValue);
                 return;
             }
             if(newValue == null)

@@ -393,7 +393,6 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     AddElement(item);
                 }
-                ConcurrentDictionary<string, Expression<Func<FlipInstance, bool>>> isMatch = new();
                 foreach (var item in RemainingFilters.GroupBy(g => GetGroupKey(g)))
                 {
                     var cacheKey = GetCacheKey(item.ToList());
@@ -403,6 +402,7 @@ namespace Coflnet.Sky.Commands.Shared
                         cache.lastUsed = DateTime.Now;
                         continue;
                     }
+                    ConcurrentDictionary<string, Expression<Func<FlipInstance, bool>>> isMatch = new();
                     var cacheAble = true;
                     foreach (var element in item)
                     {
@@ -422,7 +422,7 @@ namespace Coflnet.Sky.Commands.Shared
                     var matcher = isMatch[item.Key].Compile();
                     Addmatcher(item.Key, matcher);
                     if (!cacheKey.Contains(nameof(UserPremiumTier), StringComparison.CurrentCultureIgnoreCase)
-                        && !cacheKey.Contains(nameof(ConnectedMcUserDetailedFlipFilter), StringComparison.CurrentCultureIgnoreCase)
+                        && !cacheKey.Contains(nameof(ConnectedMcUserDetailedFlipFilter).Replace(nameof(DetailedFlipFilter), ""), StringComparison.CurrentCultureIgnoreCase)
                         && !cacheKey.Contains(nameof(ListingSlotsLeft), StringComparison.CurrentCultureIgnoreCase)
                         && cacheAble)
                         matcherLookup.TryAdd(cacheKey, new CacheEntry { matcher = matcher, lastUsed = DateTime.Now });
