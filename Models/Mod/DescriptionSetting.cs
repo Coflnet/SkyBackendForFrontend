@@ -41,6 +41,8 @@ public class DescriptionSetting
     public byte LowballMedUndercut;
     [SettingsDoc("Mow many percent to undercut the lbin price when lowballing, for items below 10m this is increased by 2% for items above 100m this is decreased by 2%, under 1 volume will also increase this by another 3%", "lbinUndercut")]
     public byte LowballLbinUndercut = 10;
+    [SettingsDoc("Prefer current lbin for suggestions over stable median", "suggestLbin")]
+    public bool PreferLbinInSuggestions;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
