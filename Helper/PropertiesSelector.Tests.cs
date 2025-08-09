@@ -13,11 +13,11 @@ namespace Coflnet.Sky.Commands.Helper
             var auction = new SaveAuction()
             {
                 Enchantments = new System.Collections.Generic.List<Enchantment>() {
-                    new Enchantment(Enchantment.EnchantmentType.dragon_hunter, 5)
+                    new Enchantment(Enchantment.EnchantmentType.dragon_hunter, 6)
                     }
             };
             var prop = PropertiesSelector.GetProperties(auction).Select(p => p.Value).First();
-            Assert.That("Dragon Hunter: 5",Is.EqualTo(prop));
+            Assert.That("Gravity: 6",Is.EqualTo(prop));
         }
         [Test]
         public void BedTime()
