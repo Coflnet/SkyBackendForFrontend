@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using System.Linq.Expressions;
+using Coflnet.Sky.Core;
 using Coflnet.Sky.Filter;
 
 namespace Coflnet.Sky.Commands.Shared;
@@ -16,6 +17,8 @@ public class UserPremiumTier : DetailedFlipFilter
     public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {
         var parsed = Enum.Parse<AccountTier>(val);
-        return f => filters.playerInfo == null ? false : filters.playerInfo.SessionTier == parsed;
+        if (filters.playerInfo == null)
+            throw new CoflnetException("no tier passed", "Player info is required for UserPremiumTier filter");
+        return f => filters.playerInfo.SessionTier == parsed;
     }
 }
