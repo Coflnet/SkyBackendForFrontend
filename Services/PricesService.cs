@@ -147,6 +147,93 @@ namespace Coflnet.Sky.Commands.Shared
             return DiHandler.GetService<ItemDetails>().GetItemIdForTag(itemTag, forceget);
         }
 
+        public class PriceStatistics
+        {
+            public long AverageSellTimeSeconds { get; set; }
+            public int TotalAuctionsSold { get; set; }
+            public int TotalListed { get; set; }
+            public int TotalSellers { get; set; }
+            public int TotalBuyers { get; set; }
+            public int TotalBids { get; set; }
+            public long TotalCoinsTransferred { get; set; }
+            public int TotalAuctions { get; set; }
+            public int TotalItemsSold { get; set; }
+            public int BinCount { get; set; }
+            public List<AveragePrice> Prices { get; set; } = new List<AveragePrice>();
+        }
+
+        public async Task<PriceStatistics> GetDetailedHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
+        {
+            var itemId = GetItemId(itemTag);
+            var select = context.Auctions
+                        .Where(auction => auction.ItemId == itemId)
+                        .Where(auction => auction.End > start && auction.End < end);
+            if (filters != null && filters.Count > 0)
+            {
+                filters["ItemId"] = itemId.ToString();
+                select = FilterEngine.AddFilters(select, filters);
+            }
+            var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60)).Token;
+
+            var groupedSelect = select.GroupBy(item => new { item.End.Date, Hour = 0 });
+            if (end - start < TimeSpan.FromDays(7.001))
+                groupedSelect = select.GroupBy(item => new { item.End.Date, item.End.Hour });
+
+            var dbResult = await select
+                .Select(item =>
+                    new
+                    {
+                        item.End,
+                        item.Start,
+                        item.Bin,
+                        item.HighestBidAmount,
+                        item.Count,
+                        item.SellerId,
+                        Bidders=item.Bids.OrderByDescending(b=>b.Amount).Select(b=>b.BidderId).ToList(),
+                    }).AsNoTracking().ToListAsync(timeout);
+            var groupedResult = dbResult
+                .GroupBy(item => new { item.End.Date, item.End.Hour })
+                .Select(item =>
+                    new
+                    {
+                        End = item.Key,
+                        Avg = item.Average(a => a.HighestBidAmount / a.Count),
+                        Max = item.Max(a => a.HighestBidAmount / a.Count),
+                        Min = item.Min(a => a.HighestBidAmount / a.Count),
+                        Count = item.Sum(a => a.Count),
+                        AuctionCount = item.Count(),
+                        AuctionsSold = item.Count(a => a.HighestBidAmount > 0),
+                        SellTimeSum = item.Sum(a => (a.End - a.Start).TotalSeconds),
+                        Sellers = item.Select(i => i.SellerId).Distinct().ToList(),
+                        BinCount = item.Count(i => i.Bin),
+                        Bids = item.SelectMany(i => i.Bidders).Distinct().ToList(),
+                        TotalCoinsTransferred = item.Sum(i => i.HighestBidAmount)
+                    }).ToList();
+            return new PriceStatistics()
+            {
+                TotalAuctions = groupedResult.Sum(a => a.AuctionCount),
+                TotalCoinsTransferred = groupedResult.Sum(a => a.TotalCoinsTransferred),
+                TotalBuyers = groupedResult.SelectMany(a => a.Sellers).Distinct().Count(),
+                TotalAuctionsSold = groupedResult.Sum(a => a.AuctionsSold),
+                TotalItemsSold = groupedResult.Sum(a => a.Count),
+                TotalSellers = groupedResult.SelectMany(a => a.Sellers).Distinct().Count(),
+                TotalBids = groupedResult.Sum(a => a.Bids.Count()),
+                BinCount = groupedResult.Sum(a => a.BinCount),
+                AverageSellTimeSeconds = (long)groupedResult.Where(a => a.AuctionCount > 0).Average(a => a.SellTimeSum / a.AuctionCount),
+                TotalListed = groupedResult.Sum(a => a.Count),
+                Prices = groupedResult.Select(i => new AveragePrice()
+                {
+                    Volume = i.Count,
+                    Avg = i.Avg,
+                    Max = i.Max,
+                    Min = i.Min,
+                    Date = i.End.Date.Add(TimeSpan.FromHours(i.End.Hour)),
+                    ItemId = itemId
+                }).ToList()
+            };
+        }
+
+
         public async Task<IEnumerable<AveragePrice>> GetHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
         {
             var itemId = GetItemId(itemTag);
