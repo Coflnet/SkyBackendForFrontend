@@ -160,6 +160,7 @@ namespace Coflnet.Sky.Commands.Shared
             public int TotalItemsSold { get; set; }
             public int BinCount { get; set; }
             public List<AveragePrice> Prices { get; set; } = new List<AveragePrice>();
+            public List<ItemPrices.AuctionPreview> RecentSamples { get; set; } = new();
         }
 
         public async Task<PriceStatistics> GetDetailedHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
@@ -188,8 +189,9 @@ namespace Coflnet.Sky.Commands.Shared
                         item.Bin,
                         item.HighestBidAmount,
                         item.Count,
-                        item.SellerId,
-                        Bidders=item.Bids.OrderByDescending(b=>b.Amount).Select(b=>b.BidderId).ToList(),
+                        SellerId = item.AuctioneerId,
+                        item.Uuid,
+                        Bidders = item.Bids.OrderByDescending(b => b.Amount).Select(b => b.BidderId).ToList(),
                     }).AsNoTracking().ToListAsync(timeout);
             var groupedResult = dbResult
                 .GroupBy(item => new { item.End.Date, item.End.Hour })
@@ -209,6 +211,13 @@ namespace Coflnet.Sky.Commands.Shared
                         Bids = item.SelectMany(i => i.Bidders).Distinct().ToList(),
                         TotalCoinsTransferred = item.Sum(i => i.HighestBidAmount)
                     }).ToList();
+            var recentSamples = dbResult.OrderByDescending(a => a.End).Take(60).Select(s => new ItemPrices.AuctionPreview()
+            {
+                End = s.End,
+                Price = s.HighestBidAmount / s.Count,
+                Seller = s.SellerId,
+                Uuid = s.Uuid
+            }).ToList();
             return new PriceStatistics()
             {
                 TotalAuctions = groupedResult.Sum(a => a.AuctionCount),
@@ -229,7 +238,8 @@ namespace Coflnet.Sky.Commands.Shared
                     Min = i.Min,
                     Date = i.End.Date.Add(TimeSpan.FromHours(i.End.Hour)),
                     ItemId = itemId
-                }).ToList()
+                }).ToList(),
+                RecentSamples = recentSamples
             };
         }
 
