@@ -46,7 +46,8 @@ public class MuseumService
                 {
                     AuctuinUuid = byUid[a.Value.auctionid.First()].Uuid,
                     ItemName = byUid[a.Value.auctionid.First()].ItemName,
-                    PricePerExp = a.Value.pricePerExp
+                    PricePerExp = a.Value.pricePerExp,
+                    TotalPrice = byUid[a.Value.auctionid.First()].StartingBid
                 };
             });
         }
@@ -151,5 +152,6 @@ public class MuseumService
         public (string uuid, string name)[] Options { get; set; }
         public string ItemName { get; set; }
         public long PricePerExp { get; set; }
+        public long TotalPrice { get; set; }
     }
 }
