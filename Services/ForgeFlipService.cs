@@ -12,6 +12,13 @@ public class ForgeFlipService
     IForgeApi forgeApi;
     IPlayerStateApi stateApi;
     IProfileClient profileApi;
+
+    public ForgeFlipService(IForgeApi forgeApi, IPlayerStateApi stateApi, IProfileClient profileApi)
+    {
+        this.forgeApi = forgeApi;
+        this.stateApi = stateApi;
+        this.profileApi = profileApi;
+    }
     public async Task<IEnumerable<ForgeFlip>> GetForgeFlips(string mcName, string mcUuid, string profile = "current")
     {
         var extractedTask = stateApi.PlayerStatePlayerIdExtractedGetAsync(mcName);
