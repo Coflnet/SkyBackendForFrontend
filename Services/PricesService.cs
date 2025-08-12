@@ -278,7 +278,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var result = await bazaarClient.GetHistoryGraphAsync(itemTag, start, end);
                 return result.Select(i => new AveragePrice()
                 {
-                    Volume = (int)i.BuyVolume,
+                    Volume = (int)(i.BuyMovingWeek + i.SellMovingWeek)/2,
                     Avg = (i.MaxBuy + i.MinSell) / 2,
                     Max = i.MaxBuy,
                     Min = i.MinSell,
