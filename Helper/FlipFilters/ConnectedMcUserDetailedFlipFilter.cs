@@ -15,7 +15,7 @@ public class ConnectedMcUserDetailedFlipFilter : DetailedFlipFilter
     public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {
         if (val.Length < 32)
-            return f => filters.playerInfo == null ? false : filters.playerInfo.McName.Equals(val, StringComparison.OrdinalIgnoreCase);
-        return f => filters.playerInfo == null ? false : filters.playerInfo.McUuid.Equals(val, StringComparison.OrdinalIgnoreCase);
+            return f => filters.playerInfo.McName == null ? false : filters.playerInfo.McName.Equals(val, StringComparison.OrdinalIgnoreCase);
+        return f => filters.playerInfo.McUuid == null ? false : filters.playerInfo.McUuid.Equals(val, StringComparison.OrdinalIgnoreCase);
     }
 }
