@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Diagnostics;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -416,6 +417,7 @@ namespace Coflnet.Sky.Commands.Shared
                         }
                         catch (Exception e)
                         {
+                            DiHandler.GetService<ILogger<FlipFilters>>()?.LogError(e, "Error while compiling filter {filter}", element.DisplayName ?? element.ItemTag);
                             throw new CoflnetException("compile_error", $"Error for filter {element.DisplayName ?? element.ItemTag}: " + e.Message);
                         }
                     }
