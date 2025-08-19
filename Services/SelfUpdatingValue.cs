@@ -2,6 +2,7 @@ using System;
 using StackExchange.Redis;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -14,6 +15,7 @@ namespace Coflnet.Sky.Commands.Shared
         private string UserId;
         private string Key;
         private bool IsDisposed = false;
+        private DateTime LastUpdateReceived = DateTime.UtcNow;
 
         ChannelMessageQueue subTask;
 
@@ -27,8 +29,18 @@ namespace Coflnet.Sky.Commands.Shared
         {
             var instance = new SelfUpdatingValue<T>(userId, key);
             SettingsService settings = GetService();
-            instance.subTask = await settings.GetAndSubscribe<T>(userId, key, v =>
+            instance.subTask = await CreateSubscription(userId, key, defaultGetter, instance, settings);
+            // if instance is already disposed we need to unsubscribe, this may or may not be bullshit
+            if (instance.IsDisposed)
+                instance.Dispose();
+            return instance;
+        }
+
+        private static async Task<ChannelMessageQueue> CreateSubscription(string userId, string key, Func<T> defaultGetter, SelfUpdatingValue<T> instance, SettingsService settings)
+        {
+            var sub = await settings.GetAndSubscribe<T>(userId, key, v =>
             {
+                instance.LastUpdateReceived = DateTime.UtcNow;
                 if (v == null) // should not be null
                     v = SettingsService.DefaultFor<T>(defaultGetter);
                 if (instance.ShouldPreventUpdate?.Invoke(v) ?? false)
@@ -36,13 +48,10 @@ namespace Coflnet.Sky.Commands.Shared
                 instance.OnChange?.Invoke(v);
                 instance.Value = v;
                 instance.AfterChange?.Invoke(v);
-                if(instance.IsDisposed)
+                if (instance.IsDisposed)
                     instance.Dispose();
             }, defaultGetter);
-            // if instance is already disposed we need to unsubscribe, this may or may not be bullshit
-            if (instance.IsDisposed)
-                instance.Dispose();
-            return instance;
+            return sub;
         }
 
         public static Task<SelfUpdatingValue<T>> CreateNoUpdate(Func<T> valGet)
@@ -87,9 +96,19 @@ namespace Coflnet.Sky.Commands.Shared
                 AfterChange?.Invoke(newValue);
                 return;
             }
-            if(newValue == null)
+            if (newValue == null)
                 throw new ArgumentNullException(nameof(newValue));
             await GetService().UpdateSetting(UserId, Key, newValue);
+            await Task.Delay(500); // wait for redis to update
+            if (LastUpdateReceived < DateTime.UtcNow.AddSeconds(-5))
+            {
+                DiHandler.GetService<ILogger<SelfUpdatingValue<T>>>().LogWarning(
+                    "SelfUpdatingValue {UserId}/{Key} did not receive an update in the last 5 seconds, this may indicate a desync. Re-subscribing.",
+                    UserId, Key);
+                // apaarently updating did desync, resubscribe
+                subTask?.Unsubscribe();
+                subTask = await CreateSubscription(UserId, Key, null, this, GetService());
+            }
         }
 
         /// <summary>
