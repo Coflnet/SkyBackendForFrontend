@@ -103,8 +103,8 @@ namespace Coflnet.Sky.Commands.Shared
             if (LastUpdateReceived < DateTime.UtcNow.AddSeconds(-5))
             {
                 DiHandler.GetService<ILogger<SelfUpdatingValue<T>>>().LogWarning(
-                    "SelfUpdatingValue {UserId}/{Key} did not receive an update in the last 5 seconds, this may indicate a desync. Re-subscribing.",
-                    UserId, Key);
+                    "SelfUpdatingValue {UserId}/{Key} did not receive an update in the last 5 seconds from {lastUpdate} to {now}, this may indicate a desync. Re-subscribing.",
+                    UserId, Key, LastUpdateReceived, DateTime.UtcNow);
                 // apaarently updating did desync, resubscribe
                 subTask?.Unsubscribe();
                 subTask = await CreateSubscription(UserId, Key, null, this, GetService());
