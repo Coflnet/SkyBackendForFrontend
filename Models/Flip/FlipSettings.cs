@@ -124,13 +124,13 @@ namespace Coflnet.Sky.Commands.Shared
         /// <returns>true if it matches</returns>
         public (bool, string) MatchesSettings(FlipInstance flip)
         {
+            MakeSureMatchersAreInitialized();
             if (IsFinderBlocked(flip.Finder))
                 return (false, "finder " + flip.Finder.ToString());
 
             if (OnlyBin && !flip.Auction.Bin)
                 return (false, "not bin");
 
-            MakeSureMatchersAreInitialized();
             if (BlackListMatcher == null)
                 return (false, "filters currently compiling");
 
