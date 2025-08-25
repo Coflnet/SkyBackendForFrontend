@@ -102,7 +102,7 @@ namespace Coflnet.Sky.Commands.Shared
         public bool BlockExport;
         [DataMember(Name = "blockHighCompetition")]
         [SettingsDoc("Block flips that are probably not purchaseable manually")]
-        public bool BlockHighCompetitionFlips;
+        public bool BlockHighCompetitionFlips = true;
         [IgnoreDataMember]
         public bool IsCompiled => BlackListMatcher != null && filterCompileLock.CurrentCount != 0;
         [IgnoreDataMember]
