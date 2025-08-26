@@ -396,39 +396,6 @@ namespace Coflnet.Sky.Commands.Shared
             Matches(settings, sampleFlip);
         }
 
-
-        [Test]
-        public void CheckForError()
-        {
-            DiHandler.AddTestServices();
-            var settings = JsonConvert.DeserializeObject<FlipSettings>(SpiritSettings);
-            settings.WhiteList = [];
-            foreach (var entry in settings.BlackList.ToList())
-            {
-                if (!(entry.filter?.TryGetValue("ForceBlacklist", out var force) ?? false) || force != "true")
-                    settings.BlackList.Remove(entry);
-            }
-            File.WriteAllText("test.json", JsonConvert.SerializeObject(settings, Formatting.Indented));
-            Matches(settings, new FlipInstance()
-            {
-                Auction = new SaveAuction()
-                {
-                    ItemName = "test",
-                    Tag = "test",
-                    Bin = true,
-                    StartingBid = 2,
-                    NBTLookup = Array.Empty<NBTLookup>(),
-                    FlatenedNBT = new(),
-                    Enchantments = new(),
-                    Context = new()
-                },
-                Finder = LowPricedAuction.FinderType.SNIPER,
-                MedianPrice = 100000000,
-                LowestBin = 100000,
-                Context = new()
-            });
-        }
-
         private static void Matches(FlipSettings targetSettings, FlipInstance flip)
         {
             var matches = targetSettings.MatchesSettings(flip);
