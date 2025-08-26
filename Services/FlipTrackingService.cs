@@ -452,7 +452,7 @@ namespace Coflnet.Sky.Commands
             });
         }
 
-        private FlipDetails ToFlipDetails(BidQuery b, short uidKey, List<IGrouping<long, SaveAuction>> sells, Dictionary<long, IEnumerable<Flip>> flipStats)
+        private FlipDetails ToFlipDetails(BidQuery b, short uidKey, List<IGrouping<long, Core.SaveAuction>> sells, Dictionary<long, IEnumerable<Flip>> flipStats)
         {
             Flip first = flipStats?.GetValueOrDefault(AuctionService.Instance.GetId(b.Key))?.OrderBy(b => b.Timestamp).FirstOrDefault();
             var uId = b.Nbt.Where(b => b.KeyId == uidKey).FirstOrDefault().Value;
@@ -472,7 +472,7 @@ namespace Coflnet.Sky.Commands
             }
         }
 
-        private FlipDetails ToFlipDetails(BidQuery b, Flip first, long uId, SaveAuction sell)
+        private FlipDetails ToFlipDetails(BidQuery b, Flip first, long uId, Core.SaveAuction sell)
         {
             var soldFor = sell
                                 ?.HighestBidAmount;
@@ -525,7 +525,7 @@ namespace Coflnet.Sky.Commands
             };
         }
 
-        private IEnumerable<PropertyChange> GetChanges(BidQuery b, SaveAuction sell)
+        private IEnumerable<PropertyChange> GetChanges(BidQuery b, Core.SaveAuction sell)
         {
             if (b == null || sell.Tag == null)
                 yield break;
