@@ -26,13 +26,13 @@ namespace Coflnet.Sky.Commands
         Task<int> ActiveFlipperCount();
         Task ClickFlip(string auctionId, string playerId);
         Task DownVote(string auctionId, string playerId);
-        Task<List<FlipDetails>> GetFlipsForFinder(LowPricedAuction.FinderType type, DateTime start, DateTime end);
+        Task<List<FlipDetails>> GetFlipsForFinder(Core.LowPricedAuction.FinderType type, DateTime start, DateTime end);
         Task<FlipSumary> GetPlayerFlips(string uuid, TimeSpan timeSpan, DateTime endTime = default);
         Task<FlipSumary> GetPlayerFlips(IEnumerable<string> uuids, TimeSpan timeSpan, DateTime endTime = default);
         Task<TierSumary> GetPreApiProfit();
         Task<(TimeSpan, int)> GetRecommendedPenalty(IEnumerable<string> playerIds);
         Task<SpeedCompResult> GetSpeedComp(IEnumerable<string> playerIds, int minutes = 0);
-        Task NewFlip(LowPricedAuction flip, DateTime foundAt = default);
+        Task NewFlip(Core.LowPricedAuction flip, DateTime foundAt = default);
         Task PurchaseConfirm(string auctionId, string playerId);
         Task PurchaseStart(string auctionId, string playerId);
         Task Sold(string auctionId, string playerId);
@@ -145,7 +145,7 @@ namespace Coflnet.Sky.Commands
             return Task.CompletedTask;
         }
 
-        public async Task NewFlip(LowPricedAuction flip, DateTime foundAt = default)
+        public async Task NewFlip(Core.LowPricedAuction flip, DateTime foundAt = default)
         {
             await flipTracking.TrackFlipAsync(flip.Auction.Uuid, new Flip()
             {
@@ -279,7 +279,7 @@ namespace Coflnet.Sky.Commands
             return await flipAnalyse.GetNumberOfActiveFlipperUsersAsync().ConfigureAwait(false);
         }
 
-        public async Task<List<FlipDetails>> GetFlipsForFinder(LowPricedAuction.FinderType type, DateTime start, DateTime end)
+        public async Task<List<FlipDetails>> GetFlipsForFinder(Core.LowPricedAuction.FinderType type, DateTime start, DateTime end)
         {
             if (start > end)
             {
@@ -413,7 +413,8 @@ namespace Coflnet.Sky.Commands
             return new FlipDetails()
             {
                 BuyTime = f.PurchaseTime,
-                Finder = Enum.TryParse<LowPricedAuction.FinderType>(f.FinderType.ToString().Replace("SNIPERMEDIAN", "SNIPER_MEDIAN"), true, out var finder) ? finder : LowPricedAuction.FinderType.UNKOWN,
+                Finder = Enum.TryParse<Core.LowPricedAuction.FinderType>(f.FinderType.ToString().Replace("SNIPERMEDIAN", "SNIPER_MEDIAN"), true, out var finder)
+                    ? finder : Core.LowPricedAuction.FinderType.UNKOWN,
                 ItemName = f.ItemName,
                 ItemTag = f.ItemTag,
                 OriginAuction = f.PurchaseAuctionId.ToString("N"),
@@ -507,7 +508,7 @@ namespace Coflnet.Sky.Commands
 
             return new FlipDetails()
             {
-                Finder = (first == null ? LowPricedAuction.FinderType.UNKOWN : Enum.Parse<LowPricedAuction.FinderType>(
+                Finder = (first == null ? Core.LowPricedAuction.FinderType.UNKOWN : Enum.Parse<Core.LowPricedAuction.FinderType>(
                     first.FinderType.ToString().Replace("SNIPERMEDIAN", "SNIPER_MEDIAN"), true)),
                 OriginAuction = b.Key,
                 ItemTag = sell.Tag,
