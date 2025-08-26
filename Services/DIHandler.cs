@@ -21,6 +21,7 @@ using Coflnet.Sky.Filter;
 using Coflnet.Sky.EventBroker.Client.Api;
 using Coflnet.Sky.Bazaar.Flipper.Client.Api;
 using Coflnet.Sky.Core.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -222,6 +223,15 @@ namespace Coflnet.Sky.Commands.Shared
                 new Auctions.Client.Api.AuctionApi(s.GetRequiredService<IConfiguration>()["AUCTIONS_BASE_URL"]));
 
             _servics = services;
+        }
+
+        public static void AddTestServices()
+        {
+            if (_servics == null)
+                _servics = new ServiceCollection();
+            _servics.AddLogging(b => b.AddConsole());
+            _servics.AddSingleton(new System.Diagnostics.ActivitySource("Test"));
+            _serviceProvider = null;
         }
 
         public class ServicePorter : BackgroundService
