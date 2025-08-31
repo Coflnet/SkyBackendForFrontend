@@ -33,7 +33,7 @@ public class MuseumServiceTests
         auctionMock.Setup(service => service.ApiAuctionLbinsGetAsync(0, default)).ReturnsAsync(() => new Dictionary<string, Sniper.Client.Model.ReferencePrice>(){
             {"1", new (){Price=100, AuctionId=1234}}
         });
-        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object);
+        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object, null, null);
         var result = await service.GetBestOptions(new HashSet<string>(), 30);
         result.Count.Should().Be(1);
 
@@ -53,7 +53,7 @@ public class MuseumServiceTests
             {"1", new (){Price=100, AuctionId=1234}},
             {"BLAZE_BELT", new (){Price=100, AuctionId=1235}}
         });
-        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object);
+        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object, null, null);
         var result = await service.GetBestOptions(new HashSet<string>(), 30);
         result.First().Value.auctionid.Length.Should().Be(2);
     }
@@ -77,7 +77,7 @@ public class MuseumServiceTests
             {"INFINI_VACUUM", new (){Price=100, AuctionId=1235}},
             {"INFINI_VACUUM_HOOVERIUS", new (){Price=100, AuctionId=1235}}
         });
-        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object);
+        var service = new MuseumService(auctionMock.Object, NullLogger<MuseumService>.Instance, itemService.Object, null, null);
         var result = await service.GetBestOptions(new HashSet<string>(), 30);
         result.Count.Should().Be(5);
         result.First().Value.pricePerExp.Should().Be(4);
