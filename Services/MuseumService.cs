@@ -7,6 +7,9 @@ using Coflnet.Sky.Core.Services;
 using Coflnet.Sky.Core;
 using Microsoft.EntityFrameworkCore;
 using System;
+using Coflnet.Sky.Crafts.Client.Api;
+using Coflnet.Sky.Crafts.Models;
+using Newtonsoft.Json;
 
 namespace Coflnet.Sky.Commands.Shared;
 
@@ -15,12 +18,16 @@ public class MuseumService
     private IAuctionApi sniperApi;
     private ILogger<MuseumService> logger;
     private IHypixelItemStore hypixelItemService;
+    private IProfileClient profileClient;
+    private ICraftsApi craftsApi;
 
-    public MuseumService(IAuctionApi sniperApi, ILogger<MuseumService> logger, IHypixelItemStore hypixelItemService)
+    public MuseumService(IAuctionApi sniperApi, ILogger<MuseumService> logger, IHypixelItemStore hypixelItemService, IProfileClient profileClient, ICraftsApi craftsApi)
     {
         this.sniperApi = sniperApi;
         this.logger = logger;
         this.hypixelItemService = hypixelItemService;
+        this.profileClient = profileClient;
+        this.craftsApi = craftsApi;
     }
 
     public async Task<IEnumerable<Cheapest>> GetBestMuseumPrices(HashSet<string> alreadyDonated, int amount = 30)
@@ -65,10 +72,7 @@ public class MuseumService
     {
         var items = await hypixelItemService.GetItemsAsync();
         var prices = await sniperApi.ApiAuctionLbinsGetAsync();
-        AddDonatedParents(alreadyDonated, items);
-        AddDonatedParents(alreadyDonated, items);
-        AddDonatedParents(alreadyDonated, items);
-        AddDonatedParents(alreadyDonated, items); // 4 layers deep
+        ProcessDonatedParents(alreadyDonated, items);
 
         var donateableItems = items.Where(i => i.Value.MuseumData != null);
         var single = donateableItems.Where(i => i.Value.MuseumData.DonationXp > 0).ToDictionary(i => i.Key, i => i.Value.MuseumData.DonationXp);
@@ -92,9 +96,7 @@ public class MuseumService
             }
         }
 
-        var parentLookup = items.Where(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value != null)
-                    .DistinctBy(i => i.Value.MuseumData.Parent.First().Value)
-                    .ToDictionary(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value, i => i.Value);
+        var parentLookup = CreateParentLookup(items);
         var result = new Dictionary<string, (long pricePerExp, long[] auctionid)>();
         foreach (var item in single)
         {
@@ -132,6 +134,123 @@ public class MuseumService
         return totalExp;
     }
 
+    /// <summary>
+    /// Processes donated parents by calling AddDonatedParents multiple times to handle nested relationships
+    /// </summary>
+    private static void ProcessDonatedParents(HashSet<string> alreadyDonated, Dictionary<string, Core.Services.Item> items)
+    {
+        // Process 4 layers deep to handle all parent-child relationships
+        AddDonatedParents(alreadyDonated, items);
+        AddDonatedParents(alreadyDonated, items);
+        AddDonatedParents(alreadyDonated, items);
+        AddDonatedParents(alreadyDonated, items);
+    }
+
+    /// <summary>
+    /// Creates a lookup dictionary for parent items in the museum
+    /// </summary>
+    private static Dictionary<string, Core.Services.Item> CreateParentLookup(Dictionary<string, Core.Services.Item> items)
+    {
+        return items.Where(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value != null)
+                    .DistinctBy(i => i.Value.MuseumData.Parent.First().Value)
+                    .ToDictionary(i => i.Value.MuseumData?.Parent?.FirstOrDefault().Value, i => i.Value);
+    }
+
+    /// <summary>
+    /// Checks if an item can be donated to the museum and returns its donation experience
+    /// </summary>
+    private static bool TryGetDonationExp(string itemId, Dictionary<string, Core.Services.Item> items, HashSet<string> alreadyDonated, out Core.Services.Item item, out int donationExp)
+    {
+        item = null;
+        donationExp = 0;
+
+        // Skip if already donated
+        if (alreadyDonated.Contains(itemId))
+            return false;
+
+        // Check if this item can be donated to museum
+        if (!items.TryGetValue(itemId, out item) || item.MuseumData == null)
+            return false;
+
+        donationExp = item.MuseumData.DonationXp;
+        return donationExp > 0;
+    }
+
+    /// <summary>
+    /// Gets the best museum items to craft based on experience per cost efficiency, 
+    /// filtered by what the user can actually craft
+    /// </summary>
+    /// <param name="alreadyDonated">Items already donated to the museum</param>
+    /// <param name="playerId">Player UUID</param>
+    /// <param name="profileId">Profile UUID</param>
+    /// <param name="amount">Number of items to return</param>
+    /// <returns>Best craftable museum items sorted by experience per cost</returns>
+    public async Task<IEnumerable<CraftableCheapest>> GetBestCraftableMuseumItems(HashSet<string> alreadyDonated, string playerId, string profileId, int amount = 30)
+    {
+        try
+        {
+            // Get a mock list of profitable crafts for now
+            // TODO: Replace with actual API call when the correct method is determined
+            var mockCrafts = GetMockProfitableCrafts();
+            var profitableCraftsTask = mockCrafts;
+            
+            // Filter craftable items based on player's progress
+            var craftableItems = await profileClient.FilterProfitableCrafts(profitableCraftsTask, playerId, profileId);
+            
+            // Get items data for museum information
+            var items = await hypixelItemService.GetItemsAsync();
+            
+            // Add donated parents to exclude items where parent is already donated
+            ProcessDonatedParents(alreadyDonated, items);
+
+            var result = new List<CraftableCheapest>();
+            var parentLookup = CreateParentLookup(items);
+
+            foreach (var craft in craftableItems)
+            {
+                // Check if this item can be donated to museum
+                if (!TryGetDonationExp(craft.ItemId, items, alreadyDonated, out var item, out var donationExp))
+                    continue;
+
+                // Add child experience for parent items
+                var totalExp = AddChildExp(parentLookup, craft.ItemId, alreadyDonated, donationExp);
+
+                var costPerExp = craft.CraftCost / totalExp;
+
+                result.Add(new CraftableCheapest
+                {
+                    ItemId = craft.ItemId,
+                    ItemName = craft.ItemName,
+                    CraftCost = (long)craft.CraftCost,
+                    SellPrice = (long)craft.SellPrice,
+                    PricePerExp = (long)costPerExp,
+                    DonationExp = totalExp,
+                    Ingredients = craft.Ingredients?.ToList() ?? new List<Ingredient>(),
+                    Volume = craft.Volume,
+                    Profit = (long)(craft.SellPrice - craft.CraftCost),
+                    RequiredCollection = craft.ReqCollection,
+                    RequiredSlayer = craft.ReqSlayer,
+                    RequiredSkill = craft.ReqSkill
+                });
+            }
+
+            return result
+                .OrderBy(i => i.PricePerExp)
+                .Take(amount);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error getting best craftable museum items for player {PlayerId} profile {ProfileId}", playerId, profileId);
+            return Enumerable.Empty<CraftableCheapest>();
+        }
+    }
+
+    private async Task<List<ProfitableCraft>> GetMockProfitableCrafts()
+    {
+        var data = await craftsApi.GetAllWithHttpInfoAsync();
+        return JsonConvert.DeserializeObject<List<ProfitableCraft>>(data.RawContent);
+    }
+
     private static void AddDonatedParents(HashSet<string> alreadyDonated, Dictionary<string, Core.Services.Item> items)
     {
         foreach (var item in items)
@@ -153,5 +272,21 @@ public class MuseumService
         public string ItemName { get; set; }
         public long PricePerExp { get; set; }
         public long TotalPrice { get; set; }
+    }
+
+    public class CraftableCheapest
+    {
+        public string ItemId { get; set; }
+        public string ItemName { get; set; }
+        public long CraftCost { get; set; }
+        public long SellPrice { get; set; }
+        public long PricePerExp { get; set; }
+        public int DonationExp { get; set; }
+        public List<Ingredient> Ingredients { get; set; }
+        public double Volume { get; set; }
+        public long Profit { get; set; }
+        public RequiredCollection RequiredCollection { get; set; }
+        public RequiredCollection RequiredSlayer { get; set; }
+        public RequiredSkill RequiredSkill { get; set; }
     }
 }
