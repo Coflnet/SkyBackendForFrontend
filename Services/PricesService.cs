@@ -327,7 +327,7 @@ namespace Coflnet.Sky.Commands.Shared
                 return new CurrentPrice()
                 {
                     Buy = GetBazaarCostForCount(val.BuyOrders, count),
-                    Sell = val.SellOrders.Select(s => s.PricePerUnit).DefaultIfEmpty(0).Max(),
+                    Sell = GetBazaarCostForCount(val.SellOrders, count),
                     Available = val.BuyOrders.Sum(b => b.Amount)
                 };
             }
@@ -359,7 +359,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        public double GetBazaarCostForCount(List<Bazaar.Client.Model.BuyOrder> orders, int count)
+        public double GetBazaarCostForCount(List<Bazaar.Client.Model.Order> orders, int count)
         {
             var totalCost = 0d;
             var alreadyAddedCount = 0;
