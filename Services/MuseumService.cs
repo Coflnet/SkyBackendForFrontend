@@ -10,6 +10,7 @@ using System;
 using Coflnet.Sky.Crafts.Client.Api;
 using Coflnet.Sky.Crafts.Models;
 using Newtonsoft.Json;
+using System.Diagnostics;
 
 namespace Coflnet.Sky.Commands.Shared;
 
@@ -189,13 +190,11 @@ public class MuseumService
     {
         try
         {
-            // Get a mock list of profitable crafts for now
-            // TODO: Replace with actual API call when the correct method is determined
-            var mockCrafts = GetMockProfitableCrafts();
-            var profitableCraftsTask = mockCrafts;
+            var profitableCraftsTask = GetCrafts();
             
             // Filter craftable items based on player's progress
             var craftableItems = await profileClient.FilterProfitableCrafts(profitableCraftsTask, playerId, profileId);
+            Activity.Current.Log("Found " + craftableItems.Count + " craftable items for player " + playerId);
             
             // Get items data for museum information
             var items = await hypixelItemService.GetItemsAsync();
@@ -205,6 +204,7 @@ public class MuseumService
 
             var result = new List<CraftableCheapest>();
             var parentLookup = CreateParentLookup(items);
+            Activity.Current.Log("Processing " + craftableItems.Count + " craftable items for museum donation");
 
             foreach (var craft in craftableItems)
             {
@@ -233,6 +233,7 @@ public class MuseumService
                     RequiredSkill = craft.ReqSkill
                 });
             }
+            Activity.Current.Log("Found " + result.Count + " craftable museum items for player " + playerId);
 
             return result
                 .OrderBy(i => i.PricePerExp)
@@ -245,7 +246,7 @@ public class MuseumService
         }
     }
 
-    private async Task<List<ProfitableCraft>> GetMockProfitableCrafts()
+    private async Task<List<ProfitableCraft>> GetCrafts()
     {
         var data = await craftsApi.GetAllWithHttpInfoAsync();
         return JsonConvert.DeserializeObject<List<ProfitableCraft>>(data.RawContent);
