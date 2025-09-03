@@ -110,12 +110,14 @@ namespace Coflnet.Sky.Commands.Shared
 
             public int GetHashCode(Dictionary<TKey, TValue> obj)
             {
+                if(obj == null)
+                    return 0;
                 unchecked
                 {
                     int hash = 17;
                     foreach (var pair in obj)
                     {
-                        hash = hash * 23 + pair.Key.GetHashCode();
+                        hash = hash * 23 + pair.Key?.GetHashCode() ?? 0;
                         hash = hash * 23 + valueComparer.GetHashCode(pair.Value);
                     }
                     return hash;
