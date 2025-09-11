@@ -14,7 +14,9 @@ public class BazaarUtils
             name = name.Substring(0, name.Length - 10);
             var number = Regex.Match(tag, @"\d+").Value;
             var converted = Roman.To(int.Parse(number));
-            name = $"{name.Trim()} {converted}";
+            name = $"{name.Trim()} {converted}"
+                .Replace("reiterate", "duplex")
+                .Replace("pristine", "prismatic"); // renamed enchantment
         }
         if (tag.StartsWith("ENCHANTMENT_ULTIMATE"))
         {
