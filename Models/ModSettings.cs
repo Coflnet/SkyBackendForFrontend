@@ -18,6 +18,12 @@ namespace Coflnet.Sky.Commands.Shared
         [SettingsDoc("Play a sound when a flip is received")]
         public bool PlaySoundOnFlip;
         /// <summary>
+        /// Play a sound when a flip message is sent
+        /// </summary>
+        [DataMember(Name = "soundOnOutbid")]
+        [SettingsDoc("Play a sound when a bazaar order is outbid")]
+        public bool PlaySoundOnOutbid;
+        /// <summary>
         /// Use M and k to shorten larger numbers
         /// </summary>
         [DataMember(Name = "shortNumbers")]
