@@ -43,6 +43,8 @@ public class DescriptionSetting
     public byte LowballLbinUndercut = 10;
     [SettingsDoc("Prefer current lbin for suggestions over stable median", "suggestLbin")]
     public bool PreferLbinInSuggestions;
+    [SettingsDoc("Suggest quicksell prices on listing", "suggestQuicksell")]
+    public bool SuggestQuicksell;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
