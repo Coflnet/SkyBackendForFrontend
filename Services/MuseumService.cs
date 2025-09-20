@@ -77,12 +77,7 @@ public class MuseumService
 
         var donateableItems = items.Where(i => i.Value.MuseumData != null);
         var single = donateableItems.Where(i => i.Value.MuseumData.DonationXp > 0).ToDictionary(i => i.Key, i => i.Value.MuseumData.DonationXp);
-
-        var set = donateableItems.Where(i => i.Value.MuseumData.ArmorSetDonationXp != null && i.Value.MuseumData.ArmorSetDonationXp?.Count != 0)
-                .SelectMany(i => i.Value.MuseumData.ArmorSetDonationXp.Select(aset => (i.Key, aset)))
-                .GroupBy(i => i.aset.Key) // there are 14 items that are part of multiple sets
-                .ToDictionary(i => i.Key,
-                    i => (i.First().aset.Value, i.Select(j => j.Key).ToHashSet()));
+        Dictionary<string, (int Value, HashSet<string>)> set = GetSets(donateableItems);
 
         // some sets contain extra items not listed in the api yet
         foreach (var item in set)
@@ -122,6 +117,41 @@ public class MuseumService
             .OrderBy(i => i.Value.Item1)
             .Take(amount).ToDictionary(i => i.Key, i => i.Value);
         return best10;
+    }
+
+    private static Dictionary<string, (int Value, HashSet<string>)> GetSets(IEnumerable<KeyValuePair<string, Core.Services.Item>> donateableItems)
+    {
+        // Force certain items that appear in multiple sets to only belong to one chosen set.
+        var forcedSet = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // For helmet, chestplate, leggings and boots prefer the BLAZE set
+            { "BLAZE_HELMET", "BLAZE" },
+            { "BLAZE_CHESTPLATE", "BLAZE" },
+            { "BLAZE_LEGGINGS", "BLAZE" },
+            { "BLAZE_BOOTS", "BLAZE" },
+            // The belt should belong to CRIMSON_HUNTER
+            { "BLAZE_BELT", "CRIMSON_HUNTER" },
+            // Fisherman set is comingled with sponge set
+            { "PRISMARINE_NECKLACE", "FISHERMAN"},
+            { "SPONGE_BELT", "FISHERMAN"},
+            { "CLOWNFISH_CLOAK", "FISHERMAN"},
+            { "CLAY_BRACELET", "FISHERMAN"}
+        };
+
+        var entries = donateableItems
+            .Where(i => i.Value.MuseumData.ArmorSetDonationXp != null && i.Value.MuseumData.ArmorSetDonationXp?.Count != 0)
+            .SelectMany(i => i.Value.MuseumData.ArmorSetDonationXp.Select(aset =>
+                new
+                {
+                    ItemId = i.Key,
+                    SetKey = forcedSet.TryGetValue(i.Key, out var forced) ? forced : aset.Key,
+                    SetValue = aset.Value
+                }))
+            .GroupBy(e => e.SetKey) // there are 14 items that are part of multiple sets
+            .ToDictionary(g => g.Key,
+                g => (g.First().SetValue, g.Select(j => j.ItemId).ToHashSet()));
+
+        return entries;
     }
 
     private static int AddChildExp(Dictionary<string, Core.Services.Item> parentLookup, string currentTag, HashSet<string> alreadyDonated, int totalExp)
@@ -191,14 +221,14 @@ public class MuseumService
         try
         {
             var profitableCraftsTask = GetCrafts();
-            
+
             // Filter craftable items based on player's progress
             var craftableItems = await profileClient.FilterProfitableCrafts(profitableCraftsTask, playerId, profileId);
             Activity.Current.Log("Found " + craftableItems.Count + " craftable items for player " + playerId);
-            
+
             // Get items data for museum information
             var items = await hypixelItemService.GetItemsAsync();
-            
+
             // Add donated parents to exclude items where parent is already donated
             ProcessDonatedParents(alreadyDonated, items);
 
