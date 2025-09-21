@@ -279,7 +279,7 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 TotalAuctions = groupedResult.Sum(a => a.AuctionCount),
                 TotalCoinsTransferred = groupedResult.Sum(a => a.TotalCoinsTransferred),
-                TotalBuyers = groupedResult.SelectMany(a => a.Sellers).Distinct().Count(),
+                TotalBuyers = groupedResult.SelectMany(a => a.Bids).Distinct().Count(),
                 TotalAuctionsSold = groupedResult.Sum(a => a.AuctionsSold),
                 TotalItemsSold = (int)groupedResult.Sum(a => a.Count),
                 TotalSellers = groupedResult.SelectMany(a => a.Sellers).Distinct().Count(),
