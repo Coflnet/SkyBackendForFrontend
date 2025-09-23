@@ -45,6 +45,16 @@ public class DescriptionSetting
     public bool PreferLbinInSuggestions;
     [SettingsDoc("Suggest quicksell prices on listing", "suggestQuicksell")]
     public bool SuggestQuicksell;
+    [SettingsDoc("Replace lore color gray with this color code")]
+    public string ReplaceGrayWith;
+    [SettingsDoc("Replace lore color aqua with this color code")]
+    public string ReplaceAquaWith;
+    [SettingsDoc("Replace lore color yellow with this color code")]
+    public string ReplaceYellowWith;
+    [SettingsDoc("Replace lore color gold with this color code")]
+    public string ReplaceGoldWith;
+    [SettingsDoc("Replace lore color white with this color code")]
+    public string ReplaceWhiteWith;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
