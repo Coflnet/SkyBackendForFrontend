@@ -166,13 +166,13 @@ namespace Coflnet.Sky.Commands.Shared
         public async Task<PriceStatistics> GetDetailedHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
         {
             var itemId = GetItemId(itemTag);
-            var select = context.Auctions
-                        .Where(auction => auction.ItemId == itemId)
-                        .Where(auction => auction.End > start && auction.End < end);
+            // Build a filtered base query (we'll apply time-slicing below)
+            var baseSelect = context.Auctions
+                        .Where(auction => auction.ItemId == itemId);
             if (filters != null && filters.Count > 0)
             {
                 filters["ItemId"] = itemId.ToString();
-                select = FilterEngine.AddFilters(select, filters);
+                baseSelect = FilterEngine.AddFilters(baseSelect, filters);
             }
             // Increase timeout for batched fetches and limit overall rows to avoid long-running MySQL statements
             var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(300)).Token;
@@ -192,68 +192,85 @@ namespace Coflnet.Sky.Commands.Shared
             var recentSamplesBuffer = new List<ItemPrices.AuctionPreview>();
 
             var fetched = 0;
-            var orderedQuery = select.OrderBy(a => a.End).ThenBy(a => a.UId);
 
-            while (fetched < maxTotalRows)
+            // Split overall time range into at most 60-day slices to avoid long-running queries
+            var maxSlice = TimeSpan.FromDays(60);
+            var sliceStart = start;
+            while (sliceStart < end && fetched < maxTotalRows)
             {
-                var toTake = Math.Min(batchSize, maxTotalRows - fetched);
-                var batch = await orderedQuery.Skip(fetched).Take(toTake)
-                    .Select(item => new
-                    {
-                        item.End,
-                        item.Start,
-                        item.Bin,
-                        item.HighestBidAmount,
-                        item.Count,
-                        SellerId = item.AuctioneerId,
-                        item.Uuid,
-                        Bidders = item.Bids.OrderByDescending(b => b.Amount).Select(b => b.BidderId).ToList(),
-                    }).AsNoTracking().ToListAsync(timeout);
+                var sliceEnd = sliceStart + maxSlice;
+                if (sliceEnd > end) sliceEnd = end;
 
-                if (batch == null || batch.Count == 0)
-                    break;
+                // For this slice, build the time-limited query
+                var sliceSelect = baseSelect.Where(a => a.End > sliceStart && a.End <= sliceEnd);
+                var orderedQuery = sliceSelect.OrderBy(a => a.End).ThenBy(a => a.Uuid);
 
-                foreach (var s in batch)
+                var sliceOffset = 0;
+                while (fetched < maxTotalRows)
                 {
-                    var key = (s.End.Date, s.End.Hour);
-                    var pricePerUnit = s.Count != 0 ? (double)s.HighestBidAmount / s.Count : 0.0;
+                    var toTake = Math.Min(batchSize, maxTotalRows - fetched);
+                    var batch = await orderedQuery.Skip(sliceOffset).Take(toTake)
+                        .Select(item => new
+                        {
+                            item.End,
+                            item.Start,
+                            item.Bin,
+                            item.HighestBidAmount,
+                            item.Count,
+                            SellerId = item.AuctioneerId,
+                            item.Uuid,
+                            Bidders = item.Bids.OrderByDescending(b => b.Amount).Select(b => b.BidderId).ToList(),
+                        }).AsNoTracking().ToListAsync(timeout);
 
-                    if (!aggregates.TryGetValue(key, out var ag))
+                    if (batch == null || batch.Count == 0)
+                        break;
+
+                    foreach (var s in batch)
                     {
-                        ag = (0.0, 0, 0L, 0, 0.0, new HashSet<string>(), 0, new HashSet<int>(), double.MinValue, double.MaxValue, 0L);
+                        var key = (s.End.Date, s.End.Hour);
+                        var pricePerUnit = s.Count != 0 ? (double)s.HighestBidAmount / s.Count : 0.0;
+
+                        if (!aggregates.TryGetValue(key, out var ag))
+                        {
+                            ag = (0.0, 0, 0L, 0, 0.0, new HashSet<string>(), 0, new HashSet<int>(), double.MinValue, double.MaxValue, 0L);
+                        }
+
+                        ag.SumPrices += pricePerUnit;
+                        ag.AuctionCount += 1;
+                        ag.SumItemCount += s.Count;
+                        if (s.HighestBidAmount > 0) ag.AuctionsSold += 1;
+                        ag.SellTimeSum += (s.End - s.Start).TotalSeconds;
+                        if (s.SellerId != null) ag.Sellers.Add(s.SellerId);
+                        if (s.Bin) ag.BinCount += 1;
+                        if (s.Bidders != null)
+                        {
+                            foreach (var b in s.Bidders)
+                                ag.Bidders.Add(b);
+                        }
+                        if (pricePerUnit > ag.MaxPrice) ag.MaxPrice = pricePerUnit;
+                        if (pricePerUnit < ag.MinPrice) ag.MinPrice = pricePerUnit;
+                        ag.TotalCoinsTransferred += s.HighestBidAmount;
+
+                        aggregates[key] = ag;
+
+                        // recent samples buffer (we'll trim later)
+                        recentSamplesBuffer.Add(new ItemPrices.AuctionPreview()
+                        {
+                            End = s.End,
+                            Price = (long)pricePerUnit,
+                            Seller = s.SellerId,
+                            Uuid = s.Uuid
+                        });
                     }
 
-                    ag.SumPrices += pricePerUnit;
-                    ag.AuctionCount += 1;
-                    ag.SumItemCount += s.Count;
-                    if (s.HighestBidAmount > 0) ag.AuctionsSold += 1;
-                    ag.SellTimeSum += (s.End - s.Start).TotalSeconds;
-                    if (s.SellerId != null) ag.Sellers.Add(s.SellerId);
-                    if (s.Bin) ag.BinCount += 1;
-                    if (s.Bidders != null)
-                    {
-                        foreach (var b in s.Bidders)
-                            ag.Bidders.Add(b);
-                    }
-                    if (pricePerUnit > ag.MaxPrice) ag.MaxPrice = pricePerUnit;
-                    if (pricePerUnit < ag.MinPrice) ag.MinPrice = pricePerUnit;
-                    ag.TotalCoinsTransferred += s.HighestBidAmount;
-
-                    aggregates[key] = ag;
-
-                    // recent samples buffer (we'll trim later)
-                    recentSamplesBuffer.Add(new ItemPrices.AuctionPreview()
-                    {
-                        End = s.End,
-                        Price = (long)pricePerUnit,
-                        Seller = s.SellerId,
-                        Uuid = s.Uuid
-                    });
+                    fetched += batch.Count;
+                    sliceOffset += batch.Count;
+                    if (batch.Count < toTake)
+                        break; // no more rows in this slice
                 }
 
-                fetched += batch.Count;
-                if (batch.Count < toTake)
-                    break; // no more rows
+                // move to next slice
+                sliceStart = sliceEnd;
             }
 
             // Build grouped result from aggregates
