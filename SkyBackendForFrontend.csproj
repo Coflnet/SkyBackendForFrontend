@@ -29,7 +29,7 @@
     <PackageReference Include="Fastenshtein" Version="1.0.11" />
     <PackageReference Include="Coflnet.Sky.Settings.Client" Version="0.2.3" />
     <PackageReference Include="Coflnet.Sky.Crafts.Client" Version="0.8.2" />
-    <PackageReference Include="Coflnet.Sky.Bazaar.Client" Version="0.6.0" />
+    <PackageReference Include="Coflnet.Sky.Bazaar.Client" Version="0.7.0" />
     <PackageReference Include="Coflnet.Sky.Referral.Client" Version="1.0.0" />
     <PackageReference Include="Coflnet.Sky.Sniper.Client" Version="0.12.2" />
     <PackageReference Include="Google.Apis.Auth" Version="1.71.0" />
