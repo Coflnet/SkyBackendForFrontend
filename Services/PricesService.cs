@@ -57,6 +57,7 @@ namespace Coflnet.Sky.Commands.Shared
         public async Task<PriceSumary> GetSumary(string itemTag, Dictionary<string, string> filter)
         {
             int id = GetItemId(itemTag);
+            filter ??= [];
 
             var days = 2;
             var bazaarItems = await GetBazaarItems();
