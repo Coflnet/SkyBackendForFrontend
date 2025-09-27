@@ -108,6 +108,11 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new CraftsApi(config["CRAFTS_BASE_URL"]);
             });
+            services.AddSingleton<INpcApi>(context =>
+            {
+                var config = context.GetRequiredService<IConfiguration>();
+                return new NpcApi(config["CRAFTS_BASE_URL"]);
+            });
             services.AddSingleton<IKatApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
