@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Coflnet.Sky.Crafts.Models;
+using Coflnet.Sky.Crafts.Client.Model;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using RestSharp;

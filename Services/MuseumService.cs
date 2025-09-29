@@ -8,9 +8,9 @@ using Coflnet.Sky.Core;
 using Microsoft.EntityFrameworkCore;
 using System;
 using Coflnet.Sky.Crafts.Client.Api;
-using Coflnet.Sky.Crafts.Models;
 using Newtonsoft.Json;
 using System.Diagnostics;
+using Coflnet.Sky.Crafts.Client.Model;
 
 namespace Coflnet.Sky.Commands.Shared;
 
@@ -255,7 +255,7 @@ public class MuseumService
                     SellPrice = (long)craft.SellPrice,
                     PricePerExp = (long)costPerExp,
                     DonationExp = totalExp,
-                    Ingredients = craft.Ingredients?.ToList() ?? new List<Ingredient>(),
+                    Ingredients = craft.Ingredients?.ToList() ?? new (),
                     Volume = craft.Volume,
                     Profit = (long)(craft.SellPrice - craft.CraftCost),
                     RequiredCollection = craft.ReqCollection,
