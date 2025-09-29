@@ -103,26 +103,14 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new AttributeApi(config["SNIPER_BASE_URL"]);
             });
-            services.AddSingleton<ICraftsApi>(context =>
-            {
-                var config = context.GetRequiredService<IConfiguration>();
-                return new CraftsApi(config["CRAFTS_BASE_URL"]);
-            });
-            services.AddSingleton<INpcApi>(context =>
-            {
-                var config = context.GetRequiredService<IConfiguration>();
-                return new NpcApi(config["CRAFTS_BASE_URL"]);
-            });
-            services.AddSingleton<IKatApi>(context =>
-            {
-                var config = context.GetRequiredService<IConfiguration>();
-                return new KatApi(config["CRAFTS_BASE_URL"]);
-            });
-            services.AddSingleton<IForgeApi>(context =>
-            {
-                var config = context.GetRequiredService<IConfiguration>();
-                return new ForgeApi(config["CRAFTS_BASE_URL"]);
-            });
+            static string GetCraftsBaseUrl(IServiceProvider provider) =>
+                provider.GetRequiredService<IConfiguration>()["CRAFTS_BASE_URL"];
+
+            services.AddSingleton<ICraftsApi>(context => new CraftsApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<INpcApi>(context => new NpcApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<IDropApi>(context => new DropApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<IKatApi>(context => new KatApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<IForgeApi>(context => new ForgeApi(GetCraftsBaseUrl(context)));
             services.AddSingleton<Api.Client.Api.IPricesApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
