@@ -239,8 +239,12 @@ namespace Coflnet.Sky.Commands.Shared
                         ag.SumPrices += pricePerUnit;
                         ag.AuctionCount += 1;
                         ag.SumItemCount += s.Count;
-                        if (s.HighestBidAmount > 0) ag.AuctionsSold += 1;
-                        ag.SellTimeSum += (s.End - s.Start).TotalSeconds;
+                        if (s.HighestBidAmount > 0)
+                            ag.AuctionsSold += 1;
+                        if ((s.End - s.Start).TotalDays < 15)
+                            ag.SellTimeSum += (s.End - s.Start).TotalSeconds;
+                        else 
+                            ag.SellTimeSum += 24 * 3600; // fill in 1 day placeholder for items that are unknown, to avoid skewing the average
                         if (s.SellerId != null) ag.Sellers.Add(s.SellerId);
                         if (s.Bin) ag.BinCount += 1;
                         if (s.Bidders != null)
@@ -353,7 +357,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var result = await bazaarClient.GetHistoryGraphAsync(itemTag, start, end);
                 return result.Select(i => new AveragePrice()
                 {
-                    Volume = (int)(i.BuyMovingWeek + i.SellMovingWeek)/2,
+                    Volume = (int)(i.BuyMovingWeek + i.SellMovingWeek) / 2,
                     Avg = (i.MaxBuy + i.MinSell) / 2,
                     Max = i.MaxBuy,
                     Min = i.MinSell,
