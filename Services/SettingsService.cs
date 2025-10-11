@@ -115,7 +115,42 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (a.StartsWith("\""))
                 a = JsonConvert.DeserializeObject<string>(a);
-            return JsonConvert.DeserializeObject<T>(a);
+
+            var settings = new JsonSerializerSettings();
+            settings.Converters.Add(new NullToDefaultConverter());
+            return JsonConvert.DeserializeObject<T>(a, settings);
+        }
+
+        /// <summary>
+        /// Converter that returns the CLR default for non-nullable value types when the JSON token is null,
+        /// preventing JsonSerializationException when a JSON property is null but the target property is a value type.
+        /// </summary>
+        private class NullToDefaultConverter : JsonConverter
+        {
+            public override bool CanWrite => false;
+
+            public override bool CanConvert(Type objectType)
+            {
+                // Apply to non-nullable value types (including enums and structs)
+                return objectType.IsValueType && Nullable.GetUnderlyingType(objectType) == null;
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                if (reader.TokenType == JsonToken.Null)
+                {
+                    // Return the default value for the target value type (e.g., false for bool, 0 for int)
+                    return Activator.CreateInstance(objectType);
+                }
+
+                // Delegate normal deserialization
+                return serializer.Deserialize(reader, objectType);
+            }
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }
