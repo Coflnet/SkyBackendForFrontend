@@ -56,7 +56,7 @@ public class DescriptionSetting
     [SettingsDoc("Replace lore color white with this color code")]
     public string ReplaceWhiteWith;
     [SettingsDoc("Enables no cookie workarounds, can be incompatible with other mods and considered a macro", "nocookie")]
-    public bool NoCookie;
+    public bool? NoCookie;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
