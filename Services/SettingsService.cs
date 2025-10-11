@@ -2,6 +2,7 @@ using System;
 using StackExchange.Redis;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Microsoft.Extensions.Configuration;
 using Coflnet.Sky.Settings.Client.Api;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ namespace Coflnet.Sky.Commands.Shared
                 try
                 {
                     // subscribe, get then process subscription to not loose any update
-                    var subTask = con?.GetSubscriber().SubscribeAsync(GetSubKey(userId, key));
+                    var subTask = con?.GetSubscriber().SubscribeAsync(RedisChannel.Literal(GetSubKey(userId, key)));
                     T val = await GetCurrentValue(userId, key, defaultGetter);
                     update(val);
 
@@ -113,6 +114,9 @@ namespace Coflnet.Sky.Commands.Shared
 
         private static T Deserialize<T>(string a)
         {
+            if (string.IsNullOrEmpty(a))
+                return default(T);
+
             if (a.StartsWith("\""))
                 a = JsonConvert.DeserializeObject<string>(a);
 
@@ -139,12 +143,20 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 if (reader.TokenType == JsonToken.Null)
                 {
-                    // Return the default value for the target value type (e.g., false for bool, 0 for int)
                     return Activator.CreateInstance(objectType);
                 }
 
-                // Delegate normal deserialization
-                return serializer.Deserialize(reader, objectType);
+                // Load the token first to avoid re-entering this converter via serializer.Deserialize
+                // which would otherwise cause recursive calls.
+                var token = JToken.Load(reader);
+
+                // If the token is explicitly null, return default for the value type.
+                if (token.Type == JTokenType.Null)
+                    return Activator.CreateInstance(objectType);
+
+                // Convert the token to the target type WITHOUT passing the serializer
+                // to prevent the converter from being applied recursively
+                return token.ToObject(objectType);
             }
 
             public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
