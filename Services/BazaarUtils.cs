@@ -16,6 +16,7 @@ public class BazaarUtils
             var converted = Roman.To(int.Parse(number));
             name = $"{name.Trim()} {converted}"
                 .Replace("reiterate", "duplex")
+                .Replace("bobbin time", "bobbin' time")
                 .Replace("pristine", "prismatic"); // renamed enchantment
         }
         if (tag.StartsWith("ENCHANTMENT_ULTIMATE"))
