@@ -59,6 +59,11 @@ namespace Coflnet.Sky.Commands.Shared
         /// </summary>
         [DataMember(Name = "fairnessTrick")]
         public FairnessTrick Tricks = new FairnessTrick();
+        /// <summary>
+        /// Whether the user has opted in to proxy requests
+        /// </summary>
+        [DataMember(Name = "proxyOptIn")]
+        public bool ProxyOptIn { get; set; }
     }
 
     [DataContract]
