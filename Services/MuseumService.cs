@@ -31,9 +31,9 @@ public class MuseumService
         this.craftsApi = craftsApi;
     }
 
-    public async Task<IEnumerable<Cheapest>> GetBestMuseumPrices(HashSet<string> alreadyDonated, int amount = 30)
+    public async Task<IEnumerable<Cheapest>> GetBestMuseumPrices(HashSet<string> alreadyDonated, int amount = 30, bool excludeItemsWithParent = false)
     {
-        Dictionary<string, (long pricePerExp, long[] auctionid)> best10 = await GetBestOptions(alreadyDonated, amount);
+        Dictionary<string, (long pricePerExp, long[] auctionid)> best10 = await GetBestOptions(alreadyDonated, amount, excludeItemsWithParent);
         var ids = best10.SelectMany(i => i.Value.auctionid).ToList();
         using (var db = new HypixelContext())
         {
@@ -69,13 +69,18 @@ public class MuseumService
         {"THUNDER", ["THUNDERBOLT_NECKLACE"]},
     };
 
-    public async Task<Dictionary<string, (long pricePerExp, long[] auctionid)>> GetBestOptions(HashSet<string> alreadyDonated, int amount)
+    public async Task<Dictionary<string, (long pricePerExp, long[] auctionid)>> GetBestOptions(HashSet<string> alreadyDonated, int amount, bool excludeItemsWithParent = false)
     {
         var items = await hypixelItemService.GetItemsAsync();
         var prices = await sniperApi.ApiAuctionLbinsGetAsync();
         ProcessDonatedParents(alreadyDonated, items);
 
+        // Base set of donateable items (may be filtered to exclude items that have a parent)
         var donateableItems = items.Where(i => i.Value.MuseumData != null);
+        if (excludeItemsWithParent)
+        {
+            donateableItems = donateableItems.Where(i => i.Value.MuseumData?.Parent == null || !i.Value.MuseumData.Parent.Any());
+        }
         var single = donateableItems.Where(i => i.Value.MuseumData.DonationXp > 0).ToDictionary(i => i.Key, i => i.Value.MuseumData.DonationXp);
         Dictionary<string, (int Value, HashSet<string>)> set = GetSets(donateableItems);
 
@@ -215,8 +220,9 @@ public class MuseumService
     /// <param name="playerId">Player UUID</param>
     /// <param name="profileId">Profile UUID</param>
     /// <param name="amount">Number of items to return</param>
+    /// <param name="excludeItemsWithParent">If true, exclude items that have a parent (only highest-tier items are returned)</param>
     /// <returns>Best craftable museum items sorted by experience per cost</returns>
-    public async Task<IEnumerable<CraftableCheapest>> GetBestCraftableMuseumItems(HashSet<string> alreadyDonated, string playerId, string profileId, int amount = 30)
+    public async Task<IEnumerable<CraftableCheapest>> GetBestCraftableMuseumItems(HashSet<string> alreadyDonated, string playerId, string profileId, int amount = 30, bool excludeItemsWithParent = false)
     {
         try
         {
@@ -240,6 +246,10 @@ public class MuseumService
             {
                 // Check if this item can be donated to museum
                 if (!TryGetDonationExp(craft.ItemId, items, alreadyDonated, out var item, out var donationExp))
+                    continue;
+
+                // Optionally exclude items that have a parent to only get the highest-tier items
+                if (excludeItemsWithParent && item.MuseumData?.Parent != null && item.MuseumData.Parent.Any())
                     continue;
 
                 // Add child experience for parent items
