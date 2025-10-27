@@ -115,8 +115,8 @@ namespace Coflnet.Sky.Commands.Shared
         [SettingsDoc("Purchasing more than this percenatage of flips on an item will temp blacklist the item, eg if you see 8 and buy 4 the rate is 50", "maxFlipPercentage")]
         [DataMember(Name = "tempBlacklistThreshold")]
         public int TempBlacklistThreshold = 20;
-        [DataMember(Name = "useSellProfileButton")]
+        [DataMember(Name = "useSellerProfileButton")]
         [SettingsDoc("Open the sellers profile instead of their auction house when clicking their name on a flip")]
-        public bool UseSellProfileButton { get; set; }
+        public bool UseSellProfileButton;
     }
 }
