@@ -75,6 +75,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddPaymentSingleton<IUserApi>(url => new UserApi(url));
             services.AddPaymentSingleton<ITopUpApi>(url => new TopUpApi(url));
             services.AddPaymentSingleton<IGooglePayApi>(url => new GooglePayApi(url));
+            services.AddPaymentSingleton<ICreatorCodeApi>(url => new CreatorCodeApi(url));
             services.AddPaymentSingleton<ITransactionApi>(url => new TransactionApi(url));
             services.AddPaymentSingleton<ILicenseApi>(url => new LicenseApi(url));
             services.AddPaymentSingleton<ISubscriptionApi>(url => new SubscriptionApi(url));
