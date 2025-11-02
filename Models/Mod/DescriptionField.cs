@@ -151,6 +151,11 @@ public enum DescriptionField
         "the description directly below",
         "the item name")]
     DefaultLore,
+    [FieldDescription(
+        "Complex items may be better valued",
+        "by our self learning price model",
+        "Enable its estimate with this")]
+    AiEstimate,
     // anything over 9000 gets hidden
     BAZAAR_COST = 9001
 }
