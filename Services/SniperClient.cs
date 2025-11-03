@@ -13,7 +13,7 @@ namespace Coflnet.Sky.Commands.Shared;
 
 public interface ISniperClient
 {
-    Task<List<Sniper.Client.Model.PriceEstimate>> GetPrices(IEnumerable<SaveAuction> auctionRepresent);
+    Task<List<Sniper.Client.Model.PriceEstimate>> GetPrices(IEnumerable<SaveAuction> auctionRepresent, bool includeSelfLearning = true);
     Task<Dictionary<string, long>> GetCleanPrices();
 }
 
@@ -29,11 +29,13 @@ public class SniperClient : ISniperClient
         this.sniperApi = sniperApi;
         this.logger = logger;
     }
-    public async Task<List<Sniper.Client.Model.PriceEstimate>> GetPrices(IEnumerable<SaveAuction> auctionRepresent)
+    public async Task<List<Sniper.Client.Model.PriceEstimate>> GetPrices(IEnumerable<SaveAuction> auctionRepresent, bool includeSelfLearning = true)
     {
         var request = new RestRequest("/api/sniper/prices", RestSharp.Method.Post);
         var options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
         request.AddJsonBody(JsonConvert.SerializeObject(Convert.ToBase64String(MessagePackSerializer.Serialize(auctionRepresent, options))));
+        if (includeSelfLearning)
+            request.AddParameter("includeSelfLearning", "true", ParameterType.QueryString);
 
         var respone = await sniperClient.ExecuteAsync(request).ConfigureAwait(false);
         if (respone.StatusCode == 0)
