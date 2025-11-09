@@ -17,7 +17,7 @@ namespace Coflnet.Sky.Commands.Shared
         public virtual Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string content)
         {
             var selector = GetSelector(filters);
-            if (content.Contains("-") && (!content.StartsWith("-") || content.Count(c => c == '-') > 1))
+            if (content.Contains('-') && (!content.StartsWith('-') || content.Count(c => c == '-') > 1))
             {
                 var parts = content.Split(['-'], 2).Select(NumberParser.Double).ToArray();
                 var min = parts[0];
@@ -25,11 +25,11 @@ namespace Coflnet.Sky.Commands.Shared
                 return ExpressionMinMax(selector, min, max);
             }
             var value = NumberParser.Double(content.Replace("<", "").Replace(">", ""));
-            if (content.StartsWith("<"))
-                return ExpressionMinMax(selector, 0, value - 0.0000001);
-            if (content.StartsWith(">"))
+            if (content.StartsWith('<'))
+                return ExpressionMinMax(selector, -50_000_000_000, value - 0.0000001);
+            if (content.StartsWith('>'))
             {
-                return ExpressionMinMax(selector, value, int.MaxValue);
+                return ExpressionMinMax(selector, value, 50_000_000_000);
             }
 
             return ExpressionMinMax(selector, value, value);
