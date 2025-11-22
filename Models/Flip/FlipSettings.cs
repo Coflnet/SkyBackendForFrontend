@@ -350,8 +350,8 @@ namespace Coflnet.Sky.Commands.Shared
         public class ListMatcher
         {
             public List<ListEntry> FullList { get; }
-            private HashSet<string> Ids = new HashSet<string>();
-            private HashSet<string> Sellers = new HashSet<string>();
+            private ConcurrentBag<string> Ids = new ConcurrentBag<string>();
+            private ConcurrentBag<string> Sellers = new ConcurrentBag<string>();
             private List<ListEntry> RemainingFilters = new List<ListEntry>();
             Dictionary<string, Func<FlipInstance, bool>> Matchers = [];
             private static ConcurrentDictionary<string, CacheEntry> matcherLookup = new();
@@ -548,9 +548,10 @@ namespace Coflnet.Sky.Commands.Shared
 
             public (bool, string) IsMatch(FlipInstance flip)
             {
-                if (Ids.Contains(flip.Auction.Tag))
+                // ConcurrentBag doesn't have a fast Contains; use LINQ Any for lookups.
+                if (!string.IsNullOrEmpty(flip.Auction.Tag) && Ids.Any(id => id == flip.Auction.Tag))
                     return (true, "for " + flip.Auction.Tag);
-                if (Sellers.Contains(flip.Auction.AuctioneerId))
+                if (!string.IsNullOrEmpty(flip.Auction.AuctioneerId) && Sellers.Any(s => s == flip.Auction.AuctioneerId))
                     return (true, "for " + flip.Auction.AuctioneerId);
 
                 if (flip.Auction.Tag != null && Matchers.TryGetValue(flip.Auction.Tag, out Func<FlipInstance, bool> matcher) && matcher(flip))
