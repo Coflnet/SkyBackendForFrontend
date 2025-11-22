@@ -159,9 +159,8 @@ namespace Coflnet.Sky.Commands.Shared
             }
             else
             {
-                UpdateValueOnObject(value, doc.RealName, con);
+                return UpdateValueOnObject(value, doc.RealName, con);
             }
-            return value;
         }
 
         private static List<ListEntry> GetOrderedFilters(string value)
