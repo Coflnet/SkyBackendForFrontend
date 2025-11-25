@@ -12,7 +12,7 @@ namespace Coflnet.Sky.Commands.Shared;
 public class CurrentMayorDetailedFlipFilter : DetailedFlipFilter
 {
     public object[] Options => new object[] {
-            "Aatrox", "Cole", "Diana", "Diaz", "Foxy", "Finnegan", "Marina", "Paul", "Derpy", "Jerry", "Scorpius", "Dante", "Barry"
+            "Aatrox", "Cole", "Diana", "Diaz", "Foxy", "Finnegan", "Marina", "Paul", "Derpy", "Jerry", "Scorpius", "Dante", "Barry", "Aura"
             };
 
 
