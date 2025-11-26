@@ -28,14 +28,14 @@
     <PackageReference Include="Coflnet.Sky.FlipTracker.Client" Version="0.16.2" />
     <PackageReference Include="Fastenshtein" Version="1.0.11" />
     <PackageReference Include="Coflnet.Sky.Settings.Client" Version="0.2.3" />
-    <PackageReference Include="Coflnet.Sky.Crafts.Client" Version="0.9.0" />
+    <PackageReference Include="Coflnet.Sky.Crafts.Client" Version="0.10.1" />
     <PackageReference Include="Coflnet.Sky.Bazaar.Client" Version="0.7.0" />
     <PackageReference Include="Coflnet.Sky.Referral.Client" Version="1.0.0" />
     <PackageReference Include="Coflnet.Sky.Sniper.Client" Version="0.13.0" />
-    <PackageReference Include="Google.Apis.Auth" Version="1.72.0" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />
     <PackageReference Include="Coflnet.Sky.EventBroker.Client" Version="0.5.5" />
     <PackageReference Include="Coflnet.Sky.Api.Client" Version="0.7.2" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.14.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
 
   </ItemGroup>
 
