@@ -49,8 +49,7 @@ namespace Coflnet.Sky.Commands.Shared
                     continue;
                 }
                 var commandSlug = (item.GetCustomAttributes(typeof(DataMemberAttribute), true).FirstOrDefault() as DataMemberAttribute)?.Name;
-                if (commandSlug == null)
-                    commandSlug = item.Name;
+                commandSlug ??= item.Name;
                 var doc = item.GetCustomAttributes(typeof(SettingsDocAttribute), true).FirstOrDefault() as SettingsDocAttribute;
                 options.Add(prefix + commandSlug, GetDesc(item, doc, prefix));
                 if (doc?.ShortHand != null)
@@ -135,14 +134,12 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (doc.Prefix == "show")
             {
-                if (con.Visibility == null)
-                    con.Visibility = new VisibilitySettings();
+                con.Visibility ??= new VisibilitySettings();
                 return UpdateValueOnObject(value, doc.RealName, con.Visibility);
             }
             else if (doc.Prefix == "mod")
             {
-                if (con.ModSettings == null)
-                    con.ModSettings = new ModSettings();
+                con.ModSettings ??= new ModSettings();
                 if (doc.RealName == "Format")
                 {
                     try
