@@ -68,6 +68,11 @@ namespace Coflnet.Sky.Commands.Shared
                 reduction = 3;
             if (targetPrice >= 100_000_000)
                 reduction = 3.5f;
+            if(date < new DateTime(2025, 12, 12))
+            {
+                reduction += 1;
+                return reduction; // aurora adds 1%
+            }
             if (isDerpy && targetPrice >= 1_000_000)
             {
                 // derpy 4xes the claiming tax
