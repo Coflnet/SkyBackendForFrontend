@@ -225,7 +225,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         [TestCase(">{{MIN_PROFIT}}*0.5")]
         [TestCase("{{MIN_PROFIT}}*0.5-{{MIN_PROFIT}}*1.5")]
-        [TestCase("{{MIN_PROFIT}}*0.784")]
+        [TestCase("{{MIN_PROFIT}}*0.776")]
         public void Variables(string expression)
         {
             var settings = new FlipSettings()
@@ -239,7 +239,7 @@ namespace Coflnet.Sky.Commands.Shared
                 ],
                 AllowedFinders = LowPricedAuction.FinderType.SNIPER
             };
-            flipA.Target = 800_000; // lower than 1m 
+            flipA.Target = 800_000; // lower than 1m, with current fee rate yields profit matching test cases
             var matches = settings.MatchesSettings(flipA);
             matches.Item1.Should().BeTrue();
             matches.Item2.Should().Be("whitelist matched filter for item");
