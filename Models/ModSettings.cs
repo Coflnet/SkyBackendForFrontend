@@ -23,6 +23,9 @@ namespace Coflnet.Sky.Commands.Shared
         [DataMember(Name = "soundOnOutbid")]
         [SettingsDoc("Play a sound when a bazaar order is outbid")]
         public bool PlaySoundOnOutbid;
+        [DataMember(Name = "blockOutbidMsg")]
+        [SettingsDoc("Block outbid messages from appearing in chat")]
+        public bool BlockOutbidMessages;
         /// <summary>
         /// Use M and k to shorten larger numbers
         /// </summary>
