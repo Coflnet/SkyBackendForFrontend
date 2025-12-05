@@ -1,6 +1,8 @@
 using System.Linq;
 using System.Collections.Generic;
 using Coflnet.Sky.Core;
+using System.Diagnostics;
+using Newtonsoft.Json;
 
 namespace Coflnet.Sky.Commands.Shared;
 
@@ -19,7 +21,7 @@ public static class ItemComparisonHelper
     {
         if (auction == null)
             return string.Empty;
-        
+
         var nbtPart = string.Join(";", auction.FlatenedNBT?.OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
         var enchantCount = auction.Enchantments?.Count ?? 0;
         return $"{nbtPart}{enchantCount}";
@@ -49,7 +51,14 @@ public static class ItemComparisonHelper
     {
         if (purchaseAuction == null || currentItem == null)
             return false;
-        
-        return GetComparisonKey(purchaseAuction) != GetComparisonKey(currentItem);
+        var keyA = GetComparisonKey(purchaseAuction);
+        var keyB = GetComparisonKey(currentItem);
+        if (keyA != keyB)
+            Activity.Current?.Log(JsonConvert.SerializeObject(new Dictionary<string, string>
+            {
+                { "PurchaseKey", keyA },
+                { "CurrentKey", keyB }
+            }));
+        return keyA != keyB;
     }
 }
