@@ -22,7 +22,7 @@ public static class ItemComparisonHelper
         if (auction == null)
             return string.Empty;
 
-        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>f.Key != "id" && f.Key != "id").OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
+        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>f.Key != "id" && f.Key != "uid").OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
         var enchantCount = auction.Enchantments?.Count ?? 0;
         return $"{nbtPart}{enchantCount}";
     }
