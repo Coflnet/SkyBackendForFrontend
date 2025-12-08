@@ -11,6 +11,13 @@ namespace Coflnet.Sky.Commands.Shared;
 /// </summary>
 public static class ItemComparisonHelper
 {
+    static HashSet<string> ignoredNbtKeys = new HashSet<string>
+    {
+        "id",
+        "uid",
+        "hot_potato_count",
+        "hpc"
+    };
     /// <summary>
     /// Creates a comparison key from an auction's FlatenedNBT and enchantment count.
     /// Used to detect if an item has been modified since purchase.
@@ -22,7 +29,7 @@ public static class ItemComparisonHelper
         if (auction == null)
             return string.Empty;
 
-        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>f.Key != "id" && f.Key != "uid").OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
+        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>!ignoredNbtKeys.Contains(f.Key)).OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
         var enchantCount = auction.Enchantments?.Count ?? 0;
         return $"{nbtPart}{enchantCount}";
     }
