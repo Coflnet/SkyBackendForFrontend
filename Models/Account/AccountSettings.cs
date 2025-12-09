@@ -17,4 +17,6 @@ public class AccountSettings
     public bool AutoUpdateConfig = true;
     [DataMember(Name = "blockLowballs")]
     public bool BlockLowballs = false;
+    [DataMember(Name = "blockAutotip")]
+    public bool BlockAutotip = false;
 }
