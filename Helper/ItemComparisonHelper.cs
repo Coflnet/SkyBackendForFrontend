@@ -29,7 +29,7 @@ public static class ItemComparisonHelper
         if (auction == null)
             return string.Empty;
 
-        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>!ignoredNbtKeys.Contains(f.Key)).OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
+        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>!ignoredNbtKeys.Contains(f.Key) && !f.Key.Contains("RUNE")).OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
         var enchantCount = auction.Enchantments?.Count ?? 0;
         return $"{nbtPart}{enchantCount}";
     }
