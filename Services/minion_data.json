@@ -7764,11 +7764,19 @@
         "products": [
             {
                 "itemName": "Flower",
-                "perTime": 1,
+                "perTime": 0.35,
                 "npcPrice": 1,
                 "exp": null,
                 "expType": null,
-                "tag": "YELLOW_FLOWER:12"
+                "tag": "YELLOW_FLOWER"
+            },
+            {
+                "itemName": "Ancient Rose",
+                "perTime": 0.15,
+                "npcPrice": 1,
+                "exp": null,
+                "expType": null,
+                "tag": "GOLEM_POPPY"
             }
         ]
     },
