@@ -35,6 +35,8 @@ namespace Coflnet.Sky.Commands.Shared
         public string[] CommandPrefixes;
         [SettingsDoc("Autostart when joining skyblock")]
         public bool AutoStart;
+        [SettingsDoc("Which lines should be blocked from being collected from chat", true)]
+        public string ChatBlockRegex;
 
         public override bool Equals(object obj)
         {
@@ -48,7 +50,8 @@ namespace Coflnet.Sky.Commands.Shared
                    CollectChatClicks == settings.CollectChatClicks &&
                    ExtendDescriptions == settings.ExtendDescriptions &&
                    EqualityComparer<string[]>.Default.Equals(CommandPrefixes, settings.CommandPrefixes) &&
-                   AutoStart == settings.AutoStart;
+                   AutoStart == settings.AutoStart &&
+                   ChatBlockRegex == settings.ChatBlockRegex;
         }
 
         public override int GetHashCode()
@@ -64,6 +67,7 @@ namespace Coflnet.Sky.Commands.Shared
             hash.Add(ExtendDescriptions);
             hash.Add(CommandPrefixes);
             hash.Add(AutoStart);
+            hash.Add(ChatBlockRegex);
             return hash.ToHashCode();
         }
 
@@ -76,7 +80,9 @@ namespace Coflnet.Sky.Commands.Shared
             CollectScoreboard = true,
             CollectChatClicks = true,
             CommandPrefixes = new string[] { "/cofl", "/colf", "/ch" },
-            AutoStart = true
+            AutoStart = true,
+            ChatBlockRegex = "^(You tipped ).*"
         };
+
     }
 }
