@@ -266,6 +266,7 @@ public class InventoryParserTests
         Assert.That("PERFECT", Is.EqualTo(item.FlatenedNBT["COMBAT_0"]));
         Assert.That("4303281387", Is.EqualTo(item.FlatenedNBT["mined_crops"]));
         Assert.That("SHADOW_WARP_SCROLL WITHER_SHIELD_SCROLL", Is.EqualTo(item.FlatenedNBT["ability_scroll"]));
+        item.FlatenedNBT["COMBAT_0.uuid"].Should().Match("a5c233ba-9554-4c80-a697-1a78c66c045d");
         Assert.That("6", Is.EqualTo(item.FlatenedNBT["MASTER_CRYPT_TANK_ZOMBIE_70"]));
         Assert.That(ItemReferences.Reforge.Heavy, Is.EqualTo(item.Reforge));
         Assert.That(Tier.COMMON, Is.EqualTo(item.Tier));

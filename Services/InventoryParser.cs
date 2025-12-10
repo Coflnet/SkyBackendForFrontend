@@ -404,7 +404,7 @@ public class InventoryParser
                 // has uuid
                 var values = attribute.Value["value"];
                 attributesWithoutEnchantments[attribute.Name] = values["quality"]["value"].ToString();
-                attributesWithoutEnchantments[attribute.Name + ".uuid"] = values["uuid"].ToString();
+                attributesWithoutEnchantments[attribute.Name + ".uuid"] = values["uuid"]["value"].ToString();
             }
             else if (type == "compound")
                 Denest(attribute.Value["value"], attributesWithoutEnchantments);
