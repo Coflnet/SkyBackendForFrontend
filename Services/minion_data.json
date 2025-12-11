@@ -7771,12 +7771,12 @@
                 "tag": "YELLOW_FLOWER"
             },
             {
-                "itemName": "Ancient Rose",
+                "itemName": "Poppy",
                 "perTime": 0.15,
                 "npcPrice": 1,
                 "exp": null,
                 "expType": null,
-                "tag": "GOLEM_POPPY"
+                "tag": "RED_ROSE"
             }
         ]
     },
