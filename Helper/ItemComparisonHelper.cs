@@ -23,7 +23,7 @@ public static class ItemComparisonHelper
         if (auction == null)
             return string.Empty;
         // we are interested in changes of gems and drill parts only everything else won't realistically change
-        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f=>f.Value == "PERFECT" || f.Value == "FLAWLESS" || f.Key.Contains("part")).OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
+        var nbtPart = string.Join(";", auction.FlatenedNBT?.Where(f => f.Value == "PERFECT" || f.Value == "FLAWLESS" || f.Key.Contains("part")).OrderBy(f => f.Key).Select(kv => $"{kv.Key}:{kv.Value}") ?? []);
         var enchantCount = auction.Enchantments?.Count ?? 0;
         return $"{nbtPart}{enchantCount}";
     }
@@ -58,7 +58,8 @@ public static class ItemComparisonHelper
             Activity.Current?.Log(JsonConvert.SerializeObject(new Dictionary<string, string>
             {
                 { "PurchaseKey", keyA },
-                { "CurrentKey", keyB }
+                { "CurrentKey", keyB },
+                { "all", string.Join(",", currentItem.FlatenedNBT?.Select(kv=>$"{kv.Key}:{kv.Value}") ?? []) }
             }));
         return keyA != keyB;
     }
