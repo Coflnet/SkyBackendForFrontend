@@ -60,7 +60,7 @@ public static class ItemComparisonHelper
                 { "PurchaseKey", keyA },
                 { "CurrentKey", keyB },
                 { "all", string.Join(",", currentItem.FlatenedNBT?.Select(kv=>$"{kv.Key}:{kv.Value}") ?? []) }
-            }));
+            })).AddTag("diff", "some");
         return keyA != keyB;
     }
 }
