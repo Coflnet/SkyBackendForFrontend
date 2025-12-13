@@ -331,7 +331,7 @@ public class InventoryParser
 
             var flatNbt = NBT.FlattenNbtData(extraAttributes.ToObject<Dictionary<string, object>>()
                         .Where(e => e.Key != "enchantments").ToDictionary(e => e.Key, e => e.Value))
-                            .ToDictionary(n=>n.Key,n=>n.Value);
+                            .ToDictionary(n => n.Key, n => n.Value);
             var auction = new SaveAuction()
             {
                 Count = (int)item["Count"],
