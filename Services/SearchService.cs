@@ -485,7 +485,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         public static string PlayerHeadUrl(string playerUuid)
         {
-            return "https://crafatar.com/avatars/" + playerUuid;
+            return "https://sky.coflnet.com/avatars/" + playerUuid;
         }
     }
 }
