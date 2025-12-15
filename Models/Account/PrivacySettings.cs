@@ -15,6 +15,8 @@ namespace Coflnet.Sky.Commands.Shared
         public bool DisableTradeStoring;
         [SettingsDoc("Stop kuudra profit from being calculated", "noKuudra")]
         public bool DisableKuudraTracking;
+        [SettingsDoc("Stop bazaar orders from being stored")]
+        public bool DisableBazaarTracking;
         [SettingsDoc("Read and upload tab contents when joining server (detect profile type, server and island location)")]
         public bool CollectTab;
         [SettingsDoc("Read and upload scoreboard peridicly to detect purse")]
@@ -37,6 +39,8 @@ namespace Coflnet.Sky.Commands.Shared
         public bool AutoStart;
         [SettingsDoc("Which lines should be blocked from being collected from chat", true)]
         public string ChatBlockRegex;
+        [SettingsDoc("Disable hypixel message blocking")]
+        public bool NoMessageBlocking;
 
         public override bool Equals(object obj)
         {
