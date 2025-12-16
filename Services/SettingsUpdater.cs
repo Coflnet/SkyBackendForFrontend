@@ -287,8 +287,14 @@ namespace Coflnet.Sky.Commands.Shared
             else if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
             {
                 var dict = (Dictionary<string, string>)field.GetValue(obj);
+                if(value.StartsWith("{"))
+                {
+                    var newDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(value);
+                    field.SetValue(obj, newDict);
+                    return newDict;
+                }
                 var parts = value.Split(' ', 2);
-                if (parts.Length == 1)
+                if (parts.Length == 1 || parts[1] == "rm" || string.IsNullOrEmpty(parts[1]))
                 {
                     dict.Remove(parts[0]);
                     return null;
