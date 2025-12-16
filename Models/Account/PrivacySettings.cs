@@ -5,6 +5,18 @@ namespace Coflnet.Sky.Commands.Shared
 {
     public class PrivacySettings
     {
+        public const string DefaultChatRegex =
+                @"^(You cannot view this auction!|You claimed|\[Bazaar\]|\[NPC\] Kat|Cancelled"
+                + @"|You collected|\[Auction\]|BIN Auction started|You cancelled|You purchased "
+                + @"|Profile ID: |You placd a Trap|\+\d+ .* Attribute \(Level "
+                + @"|You caught |\s+Chameleon" // catching shards
+                + @"|Added items|Removed items" // stash adding notification
+                + @"|You donated your" // museum donation
+                + @"|: \d+m$" // chat lowballing discussion
+                + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
+        public const string DefaultChatBlockRegex =
+            @"^(You tipped ).*";
+
         [SettingsDoc("Which lines should be collected from chat", true)]
         public string ChatRegex;
         [SettingsDoc("Allow collection of limited amount of chat content to track eg. trades, drops, ah and bazaar events ")]
@@ -79,13 +91,14 @@ namespace Coflnet.Sky.Commands.Shared
         {
             CollectInventory = true,
             ExtendDescriptions = true,
-            ChatRegex = "^(�r�eSell Offer|�r�6[Bazaar]|�r�cCancelled|�r�6Bazaar!|�r�eYou collected|�6[Auction]|�r�eBIN Auction started|�r�eYou �r�ccancelled|[Test]| - | + |Trade completed|§e[NPC] §bKat).*",
+            ChatRegex = DefaultChatRegex,
             CollectChat = true,
             CollectScoreboard = true,
+            CollectTab = true,
             CollectChatClicks = true,
             CommandPrefixes = new string[] { "/cofl", "/colf", "/ch" },
             AutoStart = true,
-            ChatBlockRegex = "^(You tipped ).*"
+            ChatBlockRegex = DefaultChatBlockRegex
         };
 
     }
