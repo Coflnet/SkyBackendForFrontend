@@ -13,9 +13,10 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|Added items|Removed items" // stash adding notification
                 + @"|You donated your" // museum donation
                 + @"|: \d+m$" // chat lowballing discussion
+                + @"|can't find a player by the name of|That player is not online, try another user" // autotip corrections
                 + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
         public const string DefaultChatBlockRegex =
-            @"^(You tipped ).*";
+            @"^(You tipped |You've already tipped someone).*";
 
         [SettingsDoc("Which lines should be collected from chat", true)]
         public string ChatRegex;
