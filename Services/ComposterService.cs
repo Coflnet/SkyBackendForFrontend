@@ -63,6 +63,7 @@ public class ComposterService
         { "BIOFUEL", 3000f },
         { "VOLTA", 10000f },
         { "OIL_BARREL", 10000f },
+        { "SUNFLOWER_OIL", 20000f},
         { "CLAW_FOSSIL", 50000f },
         { "CLUBBED_FOSSIL", 50000f },
         { "FOOTPRINT_FOSSIL", 50000f },
