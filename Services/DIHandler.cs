@@ -54,7 +54,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new PlayerName.Client.Api.PlayerNameApi(config["PLAYERNAME_BASE_URL"] ?? "http://" + config["PLAYERNAME_HOST"]);
             });
-            services.AddSingleton<Bazaar.Client.Api.BazaarApi>(context =>
+            services.AddSingleton(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
                 var url = config["BAZAAR_BASE_URL"];
@@ -63,6 +63,12 @@ namespace Coflnet.Sky.Commands.Shared
                 return new Bazaar.Client.Api.BazaarApi(url);
             });
             services.AddSingleton<Bazaar.Client.Api.IBazaarApi, Bazaar.Client.Api.BazaarApi>(di => di.GetRequiredService<Bazaar.Client.Api.BazaarApi>());
+            services.AddSingleton<Bazaar.Client.Api.IOrderBookApi>(context =>
+            {
+                var config = context.GetRequiredService<IConfiguration>();
+                var url = config["BAZAAR_BASE_URL"];
+                return new Bazaar.Client.Api.OrderBookApi(url);
+            });
             services.AddSingleton<SettingsService>();
             services.AddSingleton<UpgradePriceService>();
             //services.AddHostedService<UpgradePriceService>(di => di.GetRequiredService<UpgradePriceService>());
