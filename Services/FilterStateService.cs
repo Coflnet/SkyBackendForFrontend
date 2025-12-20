@@ -12,6 +12,7 @@ using dev;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using RestSharp;
+using Cassandra;
 
 namespace Coflnet.Sky.Commands.Shared;
 public class FilterStateService
@@ -28,11 +29,14 @@ public class FilterStateService
         public HashSet<string> ExistingTags { get; set; } = new();
         public HashSet<string> CurrentPerks { get; set; } = new();
         public HashSet<string> NextPerks { get; set; } = new();
+        public HashSet<string> KnownYoutuberUuids { get; set; } = new();
     }
 
     private SemaphoreSlim updateLock = new SemaphoreSlim(1, 1);
 
     public FilterState State { get; set; } = new FilterState();
+
+    private DateTime lastYoutuberLoad = DateTime.MinValue;
 
     private Sky.Mayor.Client.Api.IMayorApiApi mayorApi;
     private Items.Client.Api.IItemsApi itemsApi;
@@ -98,7 +102,42 @@ public class FilterStateService
                 item.Value.Add(newItem);
             }
         }
+        await LoadKnownYoutubersAsync();
         logger.LogInformation("Loaded {0} item tags", State.ExistingTags.Count);
+    }
+
+    private async Task LoadKnownYoutubersAsync()
+    {
+        try
+        {
+            var session = DiHandler.GetService<ISession>();
+            // Query youtubers table for all uuids. Table is managed by YoutuberService in SkyModCommands.
+            var rs = session.Execute(new SimpleStatement("SELECT uuid FROM youtubers"));
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rs)
+            {
+                try
+                {
+                    if (!row.IsNull("uuid"))
+                    {
+                        var uuid = row.GetValue<string>("uuid");
+                        if (!string.IsNullOrWhiteSpace(uuid))
+                            set.Add(uuid);
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignore bad rows
+                }
+            }
+            State.KnownYoutuberUuids = set;
+            lastYoutuberLoad = DateTime.Now;
+            logger.LogInformation("Loaded {0} known youtubers into filter state", set.Count);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not load known youtubers from cassandra");
+        }
     }
 
     private void UpdateCurrentPerks()
