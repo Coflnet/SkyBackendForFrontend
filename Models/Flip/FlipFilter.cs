@@ -83,6 +83,7 @@ namespace Coflnet.Sky.Commands.Shared
             AdditionalFilters.Add<ScorpiusDaysDetailedFlipFilter>();
             AdditionalFilters.Add<DerpyDaysDetailedFlipFilter>();
             AdditionalFilters.Add<JerryDaysDetailedFlipFilter>();
+            AdditionalFilters.Add<SellerIsYoutuberDetailedFlipFilter>();
         }
 
         public FlipFilter(Dictionary<string, string> originalf, IPlayerInfo playerInfo)
