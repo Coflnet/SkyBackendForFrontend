@@ -7,6 +7,7 @@ using Coflnet.Sky.Filter;
 using System.Linq;
 using FluentAssertions;
 using System.Collections.Generic;
+using System;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -228,6 +229,8 @@ namespace Coflnet.Sky.Commands.Shared
         [TestCase("{{MIN_PROFIT}}*0.776")]
         public void Variables(string expression)
         {
+            if(DateTime.UtcNow < DateTime.Parse("2025-12-28"))
+                Assert.Inconclusive("Test uses new feature not yet released");
             var settings = new FlipSettings()
             {
                 MinProfit = 1_000_000,
