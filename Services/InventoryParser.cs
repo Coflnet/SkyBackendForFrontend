@@ -248,6 +248,26 @@ public class InventoryParser
             // haven't found where it is so this is an uggly workaround
             attributesWithoutEnchantments["unlocked_slots"] = string.Join(",", unlockedList.OrderBy(a => a).Select(e => e.ToString()));
         }
+
+        // some items encode `unlocked_slots` nested inside the `gems` compound
+        if (!attributesWithoutEnchantments.ContainsKey("unlocked_slots") && attributesWithoutEnchantments.TryGetValue("gems", out var gemsObj))
+        {
+            if (gemsObj is Dictionary<string, object> gemsDict && gemsDict.TryGetValue("unlocked_slots", out var nestedUnlocked) && nestedUnlocked is List<object> nestedList)
+            {
+                attributesWithoutEnchantments["unlocked_slots"] = string.Join(",", nestedList.OrderBy(a => a).Select(e => e.ToString()));
+                // remove from nested to avoid duplicate processing later
+                gemsDict.Remove("unlocked_slots");
+            }
+            else if (gemsObj is Newtonsoft.Json.Linq.JObject gemsJ && gemsJ.TryGetValue("unlocked_slots", out var jToken))
+            {
+                if (jToken is Newtonsoft.Json.Linq.JArray jArr)
+                {
+                    var list = jArr.Select(t => t.ToString()).OrderBy(s => s);
+                    attributesWithoutEnchantments["unlocked_slots"] = string.Join(",", list);
+                    gemsJ.Remove("unlocked_slots");
+                }
+            }
+        }
         if (attributesWithoutEnchantments.ContainsKey("timestamp"))
         {
             try
@@ -405,6 +425,12 @@ public class InventoryParser
                 var values = attribute.Value["value"];
                 attributesWithoutEnchantments[attribute.Name] = values["quality"]["value"].ToString();
                 attributesWithoutEnchantments[attribute.Name + ".uuid"] = values["uuid"]["value"].ToString();
+            }
+            else if (type == "compound" && attribute.Value["value"] is JObject)
+            {
+                var dict = new Dictionary<string, object>();
+                Denest(attribute.Value["value"], dict);
+                attributesWithoutEnchantments[attribute.Name] = dict;
             }
             else if (type == "compound")
                 Denest(attribute.Value["value"], attributesWithoutEnchantments);

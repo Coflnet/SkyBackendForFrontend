@@ -182,6 +182,19 @@ public class InventoryParserTests
                                     8314091
                                 ]
                             },
+                            "sinker": {
+                                "type": "compound",
+                                "value": {
+                                    "part": {
+                                        "type": "string",
+                                        "value": "stingy_sinker"
+                                    },
+                                    "uuid": {
+                                        "type": "string",
+                                        "value": "7e329f9e-8aaa-4a8c-90ee-f6bbb4b8d753"
+                                    }
+                                }
+                            },
                             "necromancer_souls": {
                                 "type": "list",
                                 "value": {
@@ -270,6 +283,8 @@ public class InventoryParserTests
         Assert.That("6", Is.EqualTo(item.FlatenedNBT["MASTER_CRYPT_TANK_ZOMBIE_70"]));
         Assert.That(ItemReferences.Reforge.Heavy, Is.EqualTo(item.Reforge));
         Assert.That(Tier.COMMON, Is.EqualTo(item.Tier));
+        item.FlatenedNBT["sinker.uuid"].Should().Be("7e329f9e-8aaa-4a8c-90ee-f6bbb4b8d753");
+        item.FlatenedNBT["sinker.part"].Should().Be("stingy_sinker");
 
         var divan = deserialized.Where(i => i != null).Skip(1).First();
         Assert.That(new DateTime(2023, 7, 24), Is.EqualTo(divan.ItemCreatedAt.Date));
