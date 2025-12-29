@@ -58,8 +58,8 @@ namespace Coflnet.Sky.Commands.Shared
         }
 
         public readonly static DateTime DerpyStart = new DateTime(2024, 8, 26, 7, 15, 0);
-        public readonly static DateTime AuroraStart = new DateTime(2025, 11, 22);
-        public readonly static DateTime AuroraEnd = new DateTime(2025, 12, 25);
+        public readonly static DateTime AuraStart = new DateTime(2025, 11, 22);
+        public readonly static DateTime AuraEnd = new DateTime(2026, 1, 31);
         public static float GetFeeRateForStartingBid(long targetPrice, DateTime? date = null)
         {
             date ??= DateTime.UtcNow;
@@ -70,10 +70,10 @@ namespace Coflnet.Sky.Commands.Shared
                 reduction = 3;
             if (targetPrice >= 100_000_000)
                 reduction = 3.5f;
-            if(date >= AuroraStart && date < AuroraEnd)
+            if(date >= AuraStart && date < AuraEnd)
             {
                 reduction += 1;
-                return reduction; // aurora adds 1%
+                return reduction; // Aura adds 1%
             }
             if (isDerpy && targetPrice >= 1_000_000)
             {
