@@ -22,9 +22,9 @@ public class FlipInstanceTests
         FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2025, 1, 3)).Should().Be(2f);
         FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2024, 12, 29)).Should().Be(5f);
         FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2025, 5, 3)).Should().Be(5f);
-        // Aurora event (Nov 22 - Dec 12, 2025) adds 1% tax
+        // Aura event (Nov 22, 2025 - Jan 31, 2026) adds 1% tax
         FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2025, 11, 25)).Should().Be(3f);
         FlipInstance.GetFeeRateForStartingBid(100_000_000, new DateTime(2025, 11, 25)).Should().Be(4.5f);
-        FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2025, 12, 26)).Should().Be(2f); // after aurora ends
+        FlipInstance.GetFeeRateForStartingBid(1_000_000, new DateTime(2026, 2, 26)).Should().Be(2f); // after aurora ends
     }
 }
