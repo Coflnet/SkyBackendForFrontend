@@ -379,10 +379,12 @@ namespace Coflnet.Sky.Commands.Shared
                 if (waitTime > TimeSpan.Zero)
                     await Task.Delay(waitTime).ConfigureAwait(false);
             }
-            if (minAccountTier >= AccountTier.PREMIUM_PLUS)
-                await Task.Delay(900).ConfigureAwait(false);
-            await Task.Delay(100).ConfigureAwait(false); // the whole system got upgraded from prem+ money so this artificially slows down premium
-
+            if (flip.Finder != LowPricedAuction.FinderType.Rust)
+            {
+                if (minAccountTier >= AccountTier.PREMIUM_PLUS)
+                    await Task.Delay(900).ConfigureAwait(false);
+                await Task.Delay(100).ConfigureAwait(false); // the whole system got upgraded from prem+ money so this artificially slows down premium
+            }
             foreach (var item in Subs)
             {
                 item.Value.AddLowPriced(flip);
