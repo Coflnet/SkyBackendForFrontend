@@ -164,6 +164,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new ScoresApi(config["LEADERBOARD_BASE_URL"]);
             });
+            services.AddSingleton<ILeaderboardService, LeaderboardService>();
             services.AddSingleton<ISettingsApi, SettingsApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
