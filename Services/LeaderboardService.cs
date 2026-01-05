@@ -65,7 +65,8 @@ public class LeaderboardService : ILeaderboardService
                     {
                         PlayerId = Guid.Empty.ToString("N"),
                         PlayerName = "anonymous",
-                        Score = entry.Score
+                        Score = entry.Score,
+                        Timestamp = DateTime.UtcNow
                     };
                 }
             }
@@ -74,7 +75,8 @@ public class LeaderboardService : ILeaderboardService
             {
                 PlayerId = entry.UserId,
                 PlayerName = name,
-                Score = entry.Score
+                Score = entry.Score,
+                Timestamp = DateTime.UtcNow
             };
         });
         return await Task.WhenAll(entries);
@@ -111,5 +113,6 @@ public class LeaderboardService : ILeaderboardService
         public string PlayerId { get; set; }
         public string PlayerName { get; set; }
         public long Score { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 }
