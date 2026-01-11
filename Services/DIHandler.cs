@@ -185,6 +185,7 @@ namespace Coflnet.Sky.Commands.Shared
 
             AddPlayerStateSingleton<PlayerState.Client.Api.IPlayerStateApi>(url => new PlayerState.Client.Api.PlayerStateApi(url));
             AddPlayerStateSingleton<PlayerState.Client.Api.ITransactionApi>(url => new PlayerState.Client.Api.TransactionApi(url));
+            AddPlayerStateSingleton<PlayerState.Client.Api.IBitApi>(url => new PlayerState.Client.Api.BitApi(url));
             AddPlayerStateSingleton<PlayerState.Client.Api.IBazaarProfitApi>(url => new PlayerState.Client.Api.BazaarProfitApi(url));
 
             services.AddSingleton<PremiumService>();
@@ -192,6 +193,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<EventBrokerClient>();
             services.AddSingleton<MinionService>();
             services.AddSingleton<ComposterService>();
+            services.AddSingleton<BitService>();
             services.AddSingleton<ISubscriptionsApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();

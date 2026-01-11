@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 
 namespace Coflnet.Sky.Commands.Shared;
-
 public class MinionService
 {
     public Dictionary<string, Minion> MinionData { get; set; } = new Dictionary<string, Minion>();
