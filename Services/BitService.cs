@@ -28,6 +28,13 @@ public class BitService
         var bazaarPrices = bazaarApi.GetAllPricesAsync();
 
         var bitsMap = await bitsApiTask;
+        bitsMap.AddRange(AddBook("EXPERTISE"));
+        bitsMap.AddRange(AddBook("COMPACT"));
+        bitsMap.AddRange(AddBook("CULTIVATING"));
+        bitsMap.AddRange(AddBook("ABSORB"));
+        bitsMap.AddRange(AddBook("CHAMPION"));
+        bitsMap.AddRange(AddBook("HECATOMB"));
+        bitsMap.AddRange(AddBook("TOXOPHILITE"));
         var itemNames = (await itemNamesTask).ToDictionary(i => i.Tag, i => i.Name);
         var cleanPricesMap = await cleanPrices;
         foreach (var item in await bazaarPrices)
@@ -45,7 +52,12 @@ public class BitService
                 bit.BitValue
             );
         }).OrderByDescending(o => o.CoinsPerBit).ToList();
+
+        static IEnumerable<PlayerState.Client.Model.BitTagMapping> AddBook(string name)
+        {
+            return [new("Bits Shop - Stacking Enchants", $"ENCHANTMENT_{name}_1", 4000)];
+        }
     }
-    
+
     public record Option(string Name, string Tag, float CoinsPerBit, float TotalBits);
 }
