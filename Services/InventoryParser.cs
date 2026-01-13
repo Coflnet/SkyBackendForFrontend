@@ -146,7 +146,7 @@ public class InventoryParser
                 continue;
             }
 
-            var ExtraAttributes = item.nbt.value?.ExtraAttributes?.value ?? item.ExtraAttributes;
+            var ExtraAttributes = item.nbt?.value?.ExtraAttributes?.value ?? item.ExtraAttributes;
             if (ExtraAttributes == null)
             {
                 yield return new SaveAuction()
