@@ -14,6 +14,7 @@ public interface ILeaderboardService
 {
     Task<IEnumerable<LeaderboardService.LeaderboardEntry>> GetTopFlippers(global::System.String boardName = "sky-flipers", DateTime weekStartDate = default, global::System.Int32 page = 0, global::System.Int32 count = 10);
     Task HideAccount(global::System.String userId, global::System.String accountId, DateTime expiresAt);
+    Task UnHideAccount(global::System.String userId, global::System.String accountId);
 }
 
 public class LeaderboardService : ILeaderboardService
@@ -91,6 +92,16 @@ public class LeaderboardService : ILeaderboardService
             settings.Users[accountId] = (userId, expiresAt);
         }
         await settingsService.UpdateSetting("global", "hidden_flipper_accounts", settings);
+    }
+
+    public async Task UnHideAccount(string userId, string accountId)
+    {
+        HiddenAccountsSetting settings = await GetExcluded();
+        if (settings.Users.ContainsKey(accountId))
+        {
+            settings.Users.Remove(accountId);
+            await settingsService.UpdateSetting("global", "hidden_flipper_accounts", settings);
+        }
     }
 
     private async Task<DateTime> Expiry(string userId)
