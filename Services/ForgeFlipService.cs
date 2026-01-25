@@ -24,6 +24,8 @@ public class ForgeFlipService
         var extractedTask = stateApi.PlayerStatePlayerIdExtractedGetAsync(mcName);
         var forgeUnlockedTask = profileApi.GetForgeData(mcUuid, profile);
         var forgeFlips = await forgeApi.GetAllForgeAsync();
+        if (mcUuid == null)
+            return forgeFlips;
         var unlocked = await forgeUnlockedTask;
         var extractedInfo = await extractedTask;
         if (extractedInfo.HeartOfTheMountain?.Tier > 0)
