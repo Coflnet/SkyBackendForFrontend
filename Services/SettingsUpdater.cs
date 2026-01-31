@@ -26,6 +26,7 @@ namespace Coflnet.Sky.Commands.Shared
             public string Type { get; set; }
 
             public string Prefix { get; set; }
+            public bool IsShortHand { get; set; }
         }
 
         public SettingsUpdater()
@@ -65,6 +66,7 @@ namespace Coflnet.Sky.Commands.Shared
                 Prefix = prefix,
                 Info = doc?.Description,
                 Hide = (doc?.Hide ?? false) || isShortHand,
+                IsShortHand = isShortHand,
                 ShortHand = doc?.ShortHand,
                 Type = item.FieldType.Name
             };
@@ -92,7 +94,8 @@ namespace Coflnet.Sky.Commands.Shared
 
             else if (!options.TryGetValue(key, out SettingDoc doc))
             {
-                var closest = options.Keys.Where(k => !options[k].Hide)
+                var target = options["suggestLbin"];
+                var closest = options.Keys.Where(k => !options[k].Hide || options[k].IsShortHand)
                     .OrderBy(k => Fastenshtein.Levenshtein.Distance(k.ToLower(), key.ToLower())).First();
                 throw new UnknownSettingException(key, closest);
             }
@@ -287,7 +290,7 @@ namespace Coflnet.Sky.Commands.Shared
             else if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
             {
                 var dict = (Dictionary<string, string>)field.GetValue(obj);
-                if(value.StartsWith("{"))
+                if (value.StartsWith("{"))
                 {
                     var newDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(value);
                     field.SetValue(obj, newDict);
