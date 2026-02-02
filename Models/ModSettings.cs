@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace Coflnet.Sky.Commands.Shared
@@ -121,5 +122,8 @@ namespace Coflnet.Sky.Commands.Shared
         [DataMember(Name = "useSellerProfileButton")]
         [SettingsDoc("Open the sellers profile instead of their auction house when clicking their name on a flip")]
         public bool UseSellProfileButton;
+        [DataMember(Name = "hotkeys")]
+        [SettingsDoc("Custom hotkeys for various actions")]
+        public Dictionary<string,string> Hotkeys = new Dictionary<string, string>();
     }
 }
