@@ -159,6 +159,11 @@ public class InventoryParser
                 };
                 continue;
             }
+            if(ExtraAttributes?.id?.value == null) // no tag
+            {
+                yield return null;
+                continue;
+            }
             Dictionary<string, object> attributesWithoutEnchantments = null;
             SaveAuction auction = null;
             try
@@ -217,7 +222,7 @@ public class InventoryParser
         }
         auction = new SaveAuction
         {
-            Tag = ExtraAttributes?.id.value,
+            Tag = ExtraAttributes?.id?.value,
             Enchantments = enchantments.Select(e => new Enchantment() { Type = Enum.Parse<Enchantment.EnchantmentType>(e.Key, true), Level = (byte)e.Value }).ToList(),
             Count = item.count,
             ItemName = name,
