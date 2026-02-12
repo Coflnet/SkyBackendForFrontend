@@ -226,11 +226,9 @@ namespace Coflnet.Sky.Commands.Shared
 
         [TestCase(">{{MIN_PROFIT}}*0.5")]
         [TestCase("{{MIN_PROFIT}}*0.5-{{MIN_PROFIT}}*1.5")]
-        [TestCase("{{MIN_PROFIT}}*0.776")]
+        [TestCase("<{{MIN_PROFIT}}*0.876")]
         public void Variables(string expression)
         {
-            if(DateTime.UtcNow < DateTime.Parse("2025-12-28"))
-                Assert.Inconclusive("Test uses new feature not yet released");
             var settings = new FlipSettings()
             {
                 MinProfit = 1_000_000,
