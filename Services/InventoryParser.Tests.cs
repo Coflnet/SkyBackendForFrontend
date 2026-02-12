@@ -803,4 +803,93 @@ public class InventoryParserTests
         """);
         Assert.That(data.First()?.ItemName, Is.Null);
     }
+
+    [Test]
+    public void ParseAttributeShard()
+    {
+        var parser = new InventoryParser();
+        var data = parser.Parse("""
+        {
+        "title": "Inventory",
+        "slots": [
+            {
+            "count": 64,
+            "metadata": 0,
+            "displayName": "Glacite Walker Shard",
+            "nbt": {
+                "type": "compound",
+                "name": "",
+                "value": {
+                    "ExtraAttributes": {
+                        "type": "compound",
+                        "value": {
+                            "id": {
+                                "type": "string",
+                                "value": "ATTRIBUTE_SHARD"
+                            },
+                            "ice_essence": {
+                                "type": "int",
+                                "value": 1
+                            },
+                            "uuid": {
+                                "type": "string",
+                                "value": "1952871256"
+                            }
+                        }
+                    }
+                }
+            }},
+            null,
+            {
+            "count": 4,
+            "metadata": 0,
+            "displayName": "Piranha Shard",
+            "nbt": {
+                "type": "compound",
+                "name": "",
+                "value": {
+                    "ExtraAttributes": {
+                        "type": "compound",
+                        "value": {
+                            "id": {
+                                "type": "string",
+                                "value": "ATTRIBUTE_SHARD"
+                            },
+                            "moonglade_serendipity": {
+                                "type": "int",
+                                "value": 1
+                            },
+                            "uuid": {
+                                "type": "string",
+                                "value": "1564512704"
+                            }
+                        }
+                    }
+                }
+            }}
+        ]}
+        """);
+        var first = data.First();
+        Assert.That(first.Tag, Is.EqualTo("SHARD_GLACITE_WALKER"));
+        Assert.That(first.Count, Is.EqualTo(64));
+        Assert.That(first.FlatenedNBT["ice_essence"], Is.EqualTo("1"));
+        
+        var second = data.Skip(2).First();
+        Assert.That(second.Tag, Is.EqualTo("SHARD_PIRANHA"));
+        Assert.That(second.Count, Is.EqualTo(4));
+        Assert.That(second.FlatenedNBT["moonglade_serendipity"], Is.EqualTo("1"));
+    }
+
+    [Test]
+    public void TryGetShardTagFromNameTest()
+    {
+        Assert.That(InventoryParser.TryGetShardTagFromName("§9Glacite Walker Shard", out var tag), Is.True);
+        Assert.That(tag, Is.EqualTo("SHARD_GLACITE_WALKER"));
+        
+        Assert.That(InventoryParser.TryGetShardTagFromName("§9Piranha Shard", out var tag2), Is.True);
+        Assert.That(tag2, Is.EqualTo("SHARD_PIRANHA"));
+        
+        Assert.That(InventoryParser.TryGetShardTagFromName("§fCoralot Shard", out var tag3), Is.True);
+        Assert.That(tag3, Is.EqualTo("SHARD_CORALOT"));
+    }
 }

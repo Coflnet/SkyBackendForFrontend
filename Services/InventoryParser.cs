@@ -202,6 +202,13 @@ public class InventoryParser
         {
             auction.Tag += "_" + auction.FlatenedNBT.FirstOrDefault(e => e.Key == "model").Value;
         }
+        else if (auction.Tag == "ATTRIBUTE_SHARD")
+        {
+            if (TryGetShardTagFromName(auction.ItemName, out var shardTag))
+            {
+                auction.Tag = shardTag;
+            }
+        }
     }
 
     private void CreateAuction(dynamic item, dynamic ExtraAttributes, out Dictionary<string, object> attributesWithoutEnchantments, out SaveAuction auction)
@@ -393,6 +400,34 @@ public class InventoryParser
         var value = auction.FlatenedNBT[type];
         auction.FlatenedNBT.Remove(type);
         auction.FlatenedNBT.Add("RUNE_" + type, value);
+    }
+
+    public static bool TryGetShardTagFromName(string name, out string tag)
+    {
+        var clearedname = System.Text.RegularExpressions.Regex.Replace(name, "§[0-9a-fklmnor]|SELL |BUY | Shard", "").Replace(' ', '_');
+        if (Constants.ShardNames.TryGetValue(clearedname, out var shardTag))
+            tag = "SHARD_" + shardTag.ToUpper();
+        else
+        {
+            Console.WriteLine($"unknown shard name {name}, {clearedname}");
+            var closestDistance = Constants.ShardNames
+                .Select(s => (s, Distance: Fastenshtein.Levenshtein.Distance(clearedname, s.Key)))
+                .OrderBy(x => x.Distance)
+                .FirstOrDefault();
+            if (closestDistance.Distance < 3)
+            {
+                tag = "SHARD_" + closestDistance.s.Value.ToUpper();
+                Console.WriteLine($"using closest shard name {tag} for {name}");
+                Constants.ShardNames[clearedname] = closestDistance.s.Value;
+            }
+            else
+            {
+                Console.WriteLine($"unknown shard name {name}, not using it");
+                tag = null;
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void Denest(dynamic ExtraAttributes, Dictionary<string, object> attributesWithoutEnchantments)
