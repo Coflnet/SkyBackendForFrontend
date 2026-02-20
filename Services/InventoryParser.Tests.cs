@@ -892,4 +892,65 @@ public class InventoryParserTests
         Assert.That(InventoryParser.TryGetShardTagFromName("§fCoralot Shard", out var tag3), Is.True);
         Assert.That(tag3, Is.EqualTo("SHARD_CORALOT"));
     }
+
+        [Test]
+        public void ParseAzaleaFormat()
+        {
+                var parser = new InventoryParser();
+                var data = parser.Parse("""
+                {
+                    "slots": [
+                        null,
+                        {
+                            "count": 2,
+                            "name": "minecraft:player_head",
+                            "slot": 36,
+                            "nbt": {
+                                "minecraft:custom_data": {
+                                    "id": "IRON_HELMET",
+                                    "uuid": "azalea-item-uuid",
+                                    "attributes": {
+                                        "mending": 1
+                                    }
+                                },
+                                "minecraft:custom_name": {
+                                    "extra": [
+                                        {
+                                            "color": "gold",
+                                            "text": "Kraken Shard"
+                                        }
+                                    ],
+                                    "italic": false,
+                                    "text": ""
+                                },
+                                "minecraft:lore": [
+                                    {
+                                        "extra": [
+                                            {
+                                                "bold": true,
+                                                "color": "gold",
+                                                "text": "LEGENDARY"
+                                            }
+                                        ],
+                                        "italic": false,
+                                        "text": ""
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+                """).ToList();
+
+                data.Should().HaveCount(2);
+                data[0].Should().BeNull();
+                var item = data[1];
+                item.Should().NotBeNull();
+                item.Tag.Should().Be("IRON_HELMET");
+                item.Count.Should().Be(2);
+                item.ItemName.Should().Be("§6Kraken Shard");
+                item.Uuid.Should().Be("azalea-item-uuid");
+                item.FlatenedNBT.Values.Should().Contain("1");
+                item.Tier.Should().Be(Tier.LEGENDARY);
+        }
 }

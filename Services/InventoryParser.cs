@@ -146,20 +146,20 @@ public class InventoryParser
                 continue;
             }
 
-            var ExtraAttributes = item.nbt?.value?.ExtraAttributes?.value ?? item.ExtraAttributes;
-            if (ExtraAttributes == null)
+            var extraAttributes = GetExtraAttributes(item);
+            if (extraAttributes == null)
             {
                 yield return new SaveAuction()
                 {
                     Tag = "UNKOWN",
                     Enchantments = new(),
                     Count = 1,
-                    ItemName = item.displayName,
-                    Uuid = ExtraAttributes?.uuid?.value ?? Random.Shared.Next().ToString(),
+                    ItemName = GetItemName(item),
+                    Uuid = Random.Shared.Next().ToString(),
                 };
                 continue;
             }
-            if(ExtraAttributes?.id?.value == null) // no tag
+            if (GetAttributeValue(extraAttributes, "id") == null) // no tag
             {
                 yield return null;
                 continue;
@@ -168,14 +168,13 @@ public class InventoryParser
             SaveAuction auction = null;
             try
             {
-                CreateAuction(item, ExtraAttributes, out attributesWithoutEnchantments, out auction);
+                CreateAuction(item, extraAttributes, out attributesWithoutEnchantments, out auction);
                 auction?.SetFlattenedNbt(NBT.FlattenNbtData(attributesWithoutEnchantments).GroupBy(e => e.Key).Select(e => e.First()).ToList());
                 FixItemTag(auction);
                 if (auction.Tag?.EndsWith("RUNE") ?? false)
                 {
-                    var rune = ExtraAttributes.runes.value as JObject;
-                    var type = rune?.Properties().FirstOrDefault()?.Name;
-                    UpdateRune(auction, type);
+                    if (TryGetRuneType(extraAttributes, out string runeType))
+                        UpdateRune(auction, runeType);
                 }
             }
             catch (System.Exception e)
@@ -211,37 +210,54 @@ public class InventoryParser
         }
     }
 
-    private void CreateAuction(dynamic item, dynamic ExtraAttributes, out Dictionary<string, object> attributesWithoutEnchantments, out SaveAuction auction)
+    private void CreateAuction(dynamic item, JObject extraAttributes, out Dictionary<string, object> attributesWithoutEnchantments, out SaveAuction auction)
     {
         attributesWithoutEnchantments = new Dictionary<string, object>();
-        Denest(ExtraAttributes, attributesWithoutEnchantments);
+        var typedFormat = IsTypedExtraAttributes(extraAttributes);
+        if (typedFormat)
+            Denest(extraAttributes, attributesWithoutEnchantments);
+        else
+            DenestPlain(extraAttributes, attributesWithoutEnchantments);
+
         var enchantments = new Dictionary<string, int>();
-        if (ExtraAttributes.enchantments?.value != null)
-            foreach (var enchantment in ExtraAttributes.enchantments.value)
-            {
-                enchantments.Add(enchantment.Name, (int)enchantment.Value.value);
-            }
-        string name = item.nbt.value?.display?.value?.Name?.value ?? item.displayName;
-        if (name?.StartsWith("{") ?? false)
+        if (typedFormat)
         {
-            var lines = JsonConvert.DeserializeObject<TextLine>(name);
-            name = lines.To1_08();
+            if (extraAttributes["enchantments"]?["value"] is JObject enchantmentsObj)
+            {
+                foreach (var enchantment in enchantmentsObj.Properties())
+                {
+                    enchantments[enchantment.Name] = enchantment.Value?["value"]?.Value<int>() ?? 0;
+                }
+            }
         }
+        else if (extraAttributes["enchantments"] is JObject plainEnchantments)
+        {
+            foreach (var enchantment in plainEnchantments.Properties())
+            {
+                enchantments[enchantment.Name] = enchantment.Value.Value<int>();
+            }
+        }
+
+        string name = item.nbt.value?.display?.value?.Name?.value ?? GetItemName(item);
+        if (name?.StartsWith("{") ?? false)
+            name = ParseTextComponent(name);
         auction = new SaveAuction
         {
-            Tag = ExtraAttributes?.id?.value,
+            Tag = GetAttributeValue(extraAttributes, "id"),
             Enchantments = enchantments.Select(e => new Enchantment() { Type = Enum.Parse<Enchantment.EnchantmentType>(e.Key, true), Level = (byte)e.Value }).ToList(),
             Count = item.count,
             ItemName = name,
-            Uuid = ExtraAttributes?.uuid?.value ?? Random.Shared.Next().ToString(),
+            Uuid = GetAttributeValue(extraAttributes, "uuid") ?? Random.Shared.Next().ToString(),
         };
+
         var description = item.nbt.value?.display?.value?.Lore?.value?.value?.ToObject<string[]>() as string[];
-        if (description != null && description.FirstOrDefault()?.StartsWith("{") == true)
-        {
-            description = description.Select(e => JsonConvert.DeserializeObject<TextLine>(e).To1_08()).ToArray();
-        }
+        if (description == null)
+            description = GetDescription(item);
         if (description != null)
         {
+            if (description.FirstOrDefault()?.StartsWith("{") == true)
+                description = description.Select(ParseTextComponent).ToArray();
+
             if (!NBT.GetAndAssignTier(auction, description?.LastOrDefault()?.ToString()))
                 // retry auction tier position
                 NBT.GetAndAssignTier(auction, description?.Reverse().Skip(7).FirstOrDefault()?.ToString());
@@ -395,11 +411,15 @@ public class InventoryParser
 
     private static void UpdateRune(SaveAuction auction, string type)
     {
+        if (type == null)
+            return;
         auction.Tag += $"_{type}";
         // replace the element in nbt
-        var value = auction.FlatenedNBT[type];
-        auction.FlatenedNBT.Remove(type);
-        auction.FlatenedNBT.Add("RUNE_" + type, value);
+        if (auction.FlatenedNBT.TryGetValue(type, out var value))
+        {
+            auction.FlatenedNBT.Remove(type);
+            auction.FlatenedNBT.Add("RUNE_" + type, value);
+        }
     }
 
     public static bool TryGetShardTagFromName(string name, out string tag)
@@ -478,6 +498,148 @@ public class InventoryParser
                 attributesWithoutEnchantments[attribute.Name] = ((long)attribute.Value["value"][0] << 32) + (int)attribute.Value["value"][1];
             else
                 attributesWithoutEnchantments[attribute.Name] = attribute.Value["value"];
+        }
+    }
+
+    private static JObject GetExtraAttributes(dynamic item)
+    {
+        var token = item as JToken ?? JToken.FromObject(item);
+        return token.SelectToken("nbt.value.ExtraAttributes.value") as JObject
+            ?? token["ExtraAttributes"] as JObject
+            ?? token.SelectToken("nbt['minecraft:custom_data']") as JObject;
+    }
+
+    private static bool IsTypedExtraAttributes(JObject extraAttributes)
+    {
+        return extraAttributes.Properties().Any(p => p.Value is JObject o && o["type"] != null && o["value"] != null);
+    }
+
+    private static string GetAttributeValue(JObject extraAttributes, string key)
+    {
+        var token = extraAttributes?[key];
+        if (token == null)
+            return null;
+        if (token is JObject obj && obj["value"] != null)
+            return obj["value"]?.ToString();
+        return token.Type == JTokenType.Null ? null : token.ToString();
+    }
+
+    private static string GetItemName(dynamic item)
+    {
+        var token = item as JToken ?? JToken.FromObject(item);
+        var mineflayerName = token.SelectToken("nbt.value.display.value.Name.value")?.ToString();
+        if (!string.IsNullOrEmpty(mineflayerName))
+            return ParseTextComponent(mineflayerName);
+
+        var azaleaName = token.SelectToken("nbt['minecraft:custom_name']");
+        if (azaleaName != null)
+            return ParseTextComponent(azaleaName);
+
+        return token["displayName"]?.ToString();
+    }
+
+    private static string[] GetDescription(dynamic item)
+    {
+        var token = item as JToken ?? JToken.FromObject(item);
+        var mineflayerLore = token.SelectToken("nbt.value.display.value.Lore.value.value") as JArray;
+        if (mineflayerLore != null)
+            return mineflayerLore.Select(ParseTextComponent).ToArray();
+
+        var azaleaLore = token.SelectToken("nbt['minecraft:lore']") as JArray;
+        if (azaleaLore != null)
+            return azaleaLore.Select(ParseTextComponent).ToArray();
+
+        return null;
+    }
+
+    private static string ParseTextComponent(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null)
+            return null;
+
+        if (token.Type == JTokenType.String)
+        {
+            var value = token.ToString();
+            if (!(value?.StartsWith("{") ?? false))
+                return value;
+            var textLine = JsonConvert.DeserializeObject<TextLine>(value);
+            return textLine?.To1_08() ?? value;
+        }
+
+        var text = token.ToString(Formatting.None);
+        var line = JsonConvert.DeserializeObject<TextLine>(text);
+        return line?.To1_08() ?? text;
+    }
+
+    private static string ParseTextComponent(string value)
+    {
+        if (!(value?.StartsWith("{") ?? false))
+            return value;
+        var textLine = JsonConvert.DeserializeObject<TextLine>(value);
+        return textLine?.To1_08() ?? value;
+    }
+
+    private static bool TryGetRuneType(JObject extraAttributes, out string runeType)
+    {
+        runeType = null;
+        var runesToken = extraAttributes?["runes"];
+        if (runesToken is JObject typedRunes && typedRunes["value"] is JObject typedRunesValue)
+        {
+            runeType = typedRunesValue.Properties().FirstOrDefault()?.Name;
+            return runeType != null;
+        }
+        if (runesToken is JObject plainRunes)
+        {
+            runeType = plainRunes.Properties().FirstOrDefault()?.Name;
+            return runeType != null;
+        }
+        return false;
+    }
+
+    private static void DenestPlain(JObject extraAttributes, Dictionary<string, object> attributesWithoutEnchantments)
+    {
+        foreach (var attribute in extraAttributes.Properties())
+        {
+            if (attribute.Name == "enchantments")
+                continue;
+
+            if ((attribute.Name.EndsWith("_0") || attribute.Name.EndsWith("_1") || attribute.Name.EndsWith("_2") || attribute.Name.EndsWith("_3") || attribute.Name.EndsWith("_4"))
+                        && attribute.Value is JObject keyedCompound && keyedCompound["quality"] != null)
+            {
+                attributesWithoutEnchantments[attribute.Name] = keyedCompound["quality"]?.ToString();
+                if (keyedCompound["uuid"] != null)
+                    attributesWithoutEnchantments[attribute.Name + ".uuid"] = keyedCompound["uuid"]?.ToString();
+                continue;
+            }
+
+            if (attribute.Value is JObject obj)
+            {
+                var dict = new Dictionary<string, object>();
+                DenestPlain(obj, dict);
+                attributesWithoutEnchantments[attribute.Name] = dict;
+            }
+            else if (attribute.Value is JArray array)
+            {
+                var list = new List<object>();
+                foreach (var item in array)
+                {
+                    if (item is JObject listObj)
+                    {
+                        var dict = new Dictionary<string, object>();
+                        DenestPlain(listObj, dict);
+                        list.Add(dict);
+                    }
+                    else if (item is JValue val)
+                        list.Add(val.Value);
+                    else
+                        list.Add(item.ToString());
+                }
+                attributesWithoutEnchantments[attribute.Name] = list;
+            }
+            else if (attribute.Value is JValue value)
+                attributesWithoutEnchantments[attribute.Name] = value.Value;
+            else
+                attributesWithoutEnchantments[attribute.Name] = attribute.Value?.ToString();
         }
     }
 }
