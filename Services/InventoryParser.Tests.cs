@@ -590,7 +590,7 @@ public class InventoryParserTests
         var serialized = MessagePackSerializer.Serialize(parser.Parse(ctTimestamp));
         var item = MessagePackSerializer.Deserialize<List<SaveAuction>>(serialized)
                         .Where(i => i != null).Last();
-        Assert.That(item.ItemCreatedAt, Is.EqualTo(new DateTime(2024,12,14, 20, 48, 29, 113, DateTimeKind.Utc)));
+        Assert.That(item.ItemCreatedAt, Is.EqualTo(new DateTime(2024, 12, 14, 20, 48, 29, 113, DateTimeKind.Utc)));
     }
 
     /// <summary>
@@ -873,7 +873,7 @@ public class InventoryParserTests
         Assert.That(first.Tag, Is.EqualTo("SHARD_GLACITE_WALKER"));
         Assert.That(first.Count, Is.EqualTo(64));
         Assert.That(first.FlatenedNBT["ice_essence"], Is.EqualTo("1"));
-        
+
         var second = data.Skip(2).First();
         Assert.That(second.Tag, Is.EqualTo("SHARD_PIRANHA"));
         Assert.That(second.Count, Is.EqualTo(4));
@@ -885,19 +885,19 @@ public class InventoryParserTests
     {
         Assert.That(InventoryParser.TryGetShardTagFromName("§9Glacite Walker Shard", out var tag), Is.True);
         Assert.That(tag, Is.EqualTo("SHARD_GLACITE_WALKER"));
-        
+
         Assert.That(InventoryParser.TryGetShardTagFromName("§9Piranha Shard", out var tag2), Is.True);
         Assert.That(tag2, Is.EqualTo("SHARD_PIRANHA"));
-        
+
         Assert.That(InventoryParser.TryGetShardTagFromName("§fCoralot Shard", out var tag3), Is.True);
         Assert.That(tag3, Is.EqualTo("SHARD_CORALOT"));
     }
 
-        [Test]
-        public void ParseAzaleaFormat()
-        {
-                var parser = new InventoryParser();
-                var data = parser.Parse("""
+    [Test]
+    public void ParseAzaleaFormat()
+    {
+        var parser = new InventoryParser();
+        var data = parser.Parse("""
                 {
                     "slots": [
                         null,
@@ -942,15 +942,103 @@ public class InventoryParserTests
                 }
                 """).ToList();
 
-                data.Should().HaveCount(2);
-                data[0].Should().BeNull();
-                var item = data[1];
-                item.Should().NotBeNull();
-                item.Tag.Should().Be("IRON_HELMET");
-                item.Count.Should().Be(2);
-                item.ItemName.Should().Be("§6Kraken Shard");
-                item.Uuid.Should().Be("azalea-item-uuid");
-                item.FlatenedNBT.Values.Should().Contain("1");
-                item.Tier.Should().Be(Tier.LEGENDARY);
-        }
+        data.Should().HaveCount(2);
+        data[0].Should().BeNull();
+        var item = data[1];
+        item.Should().NotBeNull();
+        item.Tag.Should().Be("IRON_HELMET");
+        item.Count.Should().Be(2);
+        item.ItemName.Should().Be("§6Kraken Shard");
+        item.Uuid.Should().Be("azalea-item-uuid");
+        item.FlatenedNBT.Values.Should().Contain("1");
+        item.Tier.Should().Be(Tier.LEGENDARY);
+    }
+
+    [Test]
+    public void ParseAzaleaFormatWithStringInExtra()
+    {
+        var parser = new InventoryParser();
+        var data = parser.Parse("""
+                {
+                    "slots": [
+                        {
+                            "count": 1,
+                            "metadata": 0,
+                            "name": "minecraft:diamond_shovel",
+                            "nbt": {
+                                "minecraft:custom_data": {
+                                    "enchantments": {
+                                        "ultimate_wise": 5
+                                    },
+                                    "ethermerge": 1,
+                                    "id": "ASPECT_OF_THE_VOID",
+                                    "timestamp": 1769397255146,
+                                    "uuid": "f5daa699-54d3-411b-b40a-f7e2f9f67aca"
+                                },
+                                "minecraft:custom_name": {
+                                    "extra": [
+                                        {
+                                            "color": "dark_purple",
+                                            "text": "Aspect of the Void"
+                                        }
+                                    ],
+                                    "italic": false,
+                                    "text": ""
+                                },
+                                "minecraft:enchantment_glint_override": true,
+                                "minecraft:lore": [
+                                    {
+                                        "extra": [
+                                            " ",
+                                            {
+                                                "color": "dark_gray",
+                                                "text": "["
+                                            },
+                                            {
+                                                "color": "gray",
+                                                "text": "✎"
+                                            },
+                                            {
+                                                "color": "dark_gray",
+                                                "text": "]"
+                                            }
+                                        ],
+                                        "italic": false,
+                                        "text": ""
+                                    },
+                                    {
+                                        "extra": [
+                                            {
+                                                "bold": true,
+                                                "color": "dark_purple",
+                                                "text": "EPIC SWORD"
+                                            }
+                                        ],
+                                        "italic": false,
+                                        "text": ""
+                                    }
+                                ],
+                                "minecraft:tooltip_display": {
+                                    "hidden_components": [
+                                        "minecraft:jukebox_playable"
+                                    ]
+                                },
+                                "minecraft:unbreakable": null
+                            },
+                            "slot": 41,
+                            "type": 937
+                        }
+                    ]
+                }
+                """).ToList();
+
+        data.Should().HaveCount(1);
+        var item = data[0];
+        item.Should().NotBeNull();
+        item.Tag.Should().Be("ASPECT_OF_THE_VOID");
+        item.ItemName.Should().Be("§5Aspect of the Void");
+        item.Tier.Should().Be(Tier.EPIC);
+        item.Uuid.Should().Be("f5daa699-54d3-411b-b40a-f7e2f9f67aca");
+        item.FlatenedNBT["uuid"].Should().Be("f5daa699-54d3-411b-b40a-f7e2f9f67aca");
+    }
 }

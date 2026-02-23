@@ -347,13 +347,21 @@ public class InventoryParser
               .ToDictionary(f => f.Name.ToLower(),
                             f => (string)f.GetValue(null));
         }
-        public List<TextElement> Extra { get; set; }
+        public JArray Extra { get; set; }
 
         public string To1_08()
         {
             if (Extra == null)
                 return string.Empty;
-            return string.Join("", Extra.Select(e => $"{(e.Bold ? McColorCodes.BOLD : String.Empty)}{(e.Italic ? McColorCodes.ITALIC : String.Empty)}{(e.Color != null && colorList.TryGetValue(e.Color, out var c) ? c : String.Empty)}{e.Text}"));
+            
+            var elements = Extra.Select(token => 
+            {
+                if (token.Type == JTokenType.String)
+                    return new TextElement { Text = token.ToString() };
+                return token.ToObject<TextElement>();
+            });
+
+            return string.Join("", elements.Select(e => $"{(e.Bold ? McColorCodes.BOLD : String.Empty)}{(e.Italic ? McColorCodes.ITALIC : String.Empty)}{(e.Color != null && colorList.TryGetValue(e.Color, out var c) ? c : String.Empty)}{e.Text}"));
         }
     }
 
