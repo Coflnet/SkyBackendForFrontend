@@ -59,6 +59,8 @@ public class DescriptionSetting
     public bool NoCookie;
     [SettingsDoc("Use bazaar buy order prices in (craftcost) calculations", "buyOrderPrices")]
     public bool BuyOrderPrices;
+    [SettingsDoc("Price paid in lore also enables auction start time if looking at an auction, this disables that. If other mods modify the item lore it can overwrite the seller name or price because the wrong line is replaced.", "noStartTime")]
+    public bool DisableAuctionStartedTime;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
