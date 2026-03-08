@@ -24,6 +24,7 @@ namespace Coflnet.Sky.Commands.Shared
             LowPricedAuction.FinderType.MedianBased,
             LowPricedAuction.FinderType.CraftCost,
             LowPricedAuction.FinderType.Bazaar,
+            LowPricedAuction.FinderType.Rust,
         }.Select(t=> (object)t).ToArray();
 
         public FilterType FilterType => FilterType.Equal;
