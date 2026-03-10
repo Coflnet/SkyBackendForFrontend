@@ -33,7 +33,7 @@ public class BitService
         bitsMap.AddRange(AddBook("CULTIVATING"));
         bitsMap.AddRange(AddBook("ABSORB"));
         bitsMap.AddRange(AddBook("CHAMPION"));
-        bitsMap.AddRange(AddBook("HECATOMB"));
+        bitsMap.AddRange(AddBook("HECATOMB", 6000));
         bitsMap.AddRange(AddBook("TOXOPHILITE"));
         var itemNames = (await itemNamesTask).ToDictionary(i => i.Tag, i => i.Name);
         var cleanPricesMap = await cleanPrices;
@@ -53,9 +53,9 @@ public class BitService
             );
         }).OrderByDescending(o => o.CoinsPerBit).ToList();
 
-        static IEnumerable<PlayerState.Client.Model.BitTagMapping> AddBook(string name)
+        static IEnumerable<PlayerState.Client.Model.BitTagMapping> AddBook(string name, int bitValue = 4000)
         {
-            return [new("Bits Shop - Stacking Enchants", $"ENCHANTMENT_{name}_1", 4000)];
+            return [new("Bits Shop - Stacking Enchants", $"ENCHANTMENT_{name}_1", bitValue)];
         }
     }
 
