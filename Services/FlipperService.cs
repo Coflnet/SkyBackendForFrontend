@@ -88,9 +88,9 @@ namespace Coflnet.Sky.Commands.Shared
             targetType.AddOrUpdate(con.Connection.Id, cid => con, (cid, oldMId) => { oldMId.Stop(); return con; });
 
             RemoveNonConnection(connection);
-            var toSendFlips = Flipps.Reverse().Take(25);
+            var toSendFlips = Flipps.Reverse().Take(250);
             if (sendHistory)
-                SendFlipHistory(connection, toSendFlips, 200);
+                SendFlipHistory(connection, toSendFlips, 100);
             con.StartWorkers();
         }
 
