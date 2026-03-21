@@ -19,6 +19,7 @@ public interface IProfileClient
     Task<Dictionary<string, string>> GetProfiles(string playerId, DateTime maxAge = default);
     Task<Api.Client.Model.Member> GetProfile(string playerId, string profile, DateTime maxAge);
     Task<string> GetActiveProfileId(string playerId);
+    Task<ProfileClient.GreenhouseData> GetGreenhouseData(string playerId, string profile);
 }
 
 public class ProfileClient : IProfileClient
@@ -121,6 +122,14 @@ public class ProfileClient : IProfileClient
         return (await profileClient.ExecuteAsync(new RestRequest($"/api/profile/{playerId}/active"))).Content.Replace("-", "");
     }
 
+    public async Task<GreenhouseData> GetGreenhouseData(string playerId, string profile)
+    {
+        var response = await profileClient.ExecuteAsync(new RestRequest($"/api/profile/{playerId}/{profile}/data/greenhouse"));
+        if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+            return new GreenhouseData();
+        return JsonConvert.DeserializeObject<GreenhouseData>(response.Content) ?? new GreenhouseData();
+    }
+
     public class PlayerProfiles
     {
         public Dictionary<string, string> Profiles;
@@ -155,6 +164,11 @@ public class ProfileClient : IProfileClient
         public long Value;
         public bool Appraisal;
         public Dictionary<string, object> Items;
+    }
+
+    public class GreenhouseData
+    {
+        public List<string> DiscoveredCrops { get; set; } = new();
     }
 }
 
