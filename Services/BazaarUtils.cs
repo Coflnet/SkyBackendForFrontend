@@ -18,6 +18,7 @@ public class BazaarUtils
                 .Replace("reiterate", "duplex")
                 .Replace("syphon", "drain")
                 .Replace("bobbin time", "bobbin' time")
+                .Replace("turbo ", "turbo-")
                 .Replace("pristine", "prismatic"); // renamed enchantment
         }
         if (tag.StartsWith("ENCHANTMENT_ULTIMATE"))
