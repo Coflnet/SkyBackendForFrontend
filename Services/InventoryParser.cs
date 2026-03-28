@@ -208,6 +208,11 @@ public class InventoryParser
                 auction.Tag = shardTag;
             }
         }
+        else if (auction.Tag == "ENCHANTED_BOOK" && auction.Enchantments?.Count == 1)
+        {
+            var enchant = auction.Enchantments.First();
+            auction.Tag = "ENCHANTMENT_" + enchant.Type.ToString().ToUpper() + "_" + enchant.Level;
+        }
     }
 
     private void CreateAuction(dynamic item, JObject extraAttributes, out Dictionary<string, object> attributesWithoutEnchantments, out SaveAuction auction)

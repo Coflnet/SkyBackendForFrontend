@@ -1041,4 +1041,76 @@ public class InventoryParserTests
         item.Uuid.Should().Be("f5daa699-54d3-411b-b40a-f7e2f9f67aca");
         item.FlatenedNBT["uuid"].Should().Be("f5daa699-54d3-411b-b40a-f7e2f9f67aca");
     }
+
+    [Test]
+    public void ParseEnchantedBookToEnchantmentTag()
+    {
+        var parser = new InventoryParser();
+        var data = parser.Parse("""
+                {
+                    "slots": [
+                        {
+                            "count": 1,
+                            "displayName": "Enchanted Book",
+                            "metadata": 0,
+                            "name": "minecraft:enchanted_book",
+                            "nbt": {
+                                "minecraft:custom_data": {
+                                    "enchantments": {
+                                        "strong_mana": 5
+                                    },
+                                    "id": "ENCHANTED_BOOK",
+                                    "timestamp": 1774665842008,
+                                    "uuid": "43bc81c8-839c-4202-8c5f-0cf1ed0909cb"
+                                },
+                                "minecraft:custom_name": {
+                                    "extra": [
+                                        {
+                                            "color": "green",
+                                            "text": "Enchanted Book"
+                                        }
+                                    ],
+                                    "italic": false,
+                                    "text": ""
+                                },
+                                "minecraft:lore": [
+                                    {
+                                        "extra": [
+                                            {
+                                                "color": "gray",
+                                                "text": "Strong Mana V"
+                                            }
+                                        ],
+                                        "italic": false,
+                                        "text": ""
+                                    },
+                                    {
+                                        "extra": [
+                                            {
+                                                "bold": true,
+                                                "color": "green",
+                                                "text": "UNCOMMON"
+                                            }
+                                        ],
+                                        "italic": false,
+                                        "text": ""
+                                    }
+                                ]
+                            },
+                            "slot": 9,
+                            "tag": "ENCHANTED_BOOK",
+                            "type": 1244
+                        }
+                    ]
+                }
+                """).ToList();
+
+        data.Should().HaveCount(1);
+        var item = data[0];
+        item.Should().NotBeNull();
+        item.Tag.Should().Be("ENCHANTMENT_STRONG_MANA_5");
+        item.Enchantments.Should().HaveCount(1);
+        item.Enchantments.First().Type.Should().Be(Enchantment.EnchantmentType.strong_mana);
+        item.Enchantments.First().Level.Should().Be(5);
+    }
 }
