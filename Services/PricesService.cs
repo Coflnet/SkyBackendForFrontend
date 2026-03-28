@@ -422,7 +422,7 @@ namespace Coflnet.Sky.Commands.Shared
                 if (lowestBins == null || lowestBins.Count == 0)
                 {
                     var sumary = await GetSumary(itemTag, filter);
-                    return new CurrentPrice() { Buy = sumary.Med, Sell = sumary.Min };
+                    return new CurrentPrice() { Buy = sumary.Med, Sell = sumary.Min, IsAh = true };
                 }
                 var foundcount = 0;
                 var cost = count == 1 ? lowestBins.FirstOrDefault().StartingBid
@@ -434,7 +434,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var sell = 0L;
                 if (lowestBins.Count > 0)
                     sell = lowestBins.First().StartingBid / lowestBins.First().Count * count;
-                return new CurrentPrice() { Buy = cost, Sell = sell * 0.98, Available = lowestBins.Count };
+                return new CurrentPrice() { Buy = cost, Sell = sell * 0.98, Available = lowestBins.Count, IsAh = true};
             }
         }
 

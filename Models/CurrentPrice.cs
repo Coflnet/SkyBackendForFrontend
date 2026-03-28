@@ -13,5 +13,7 @@ namespace Coflnet.Sky
         public int Available;
         [DataMember(Name = "updatedAt")]
         public System.DateTime Updated = System.DateTime.Now;
+        [DataMember(Name = "isAh")]
+        public bool IsAh;
     }
 }
