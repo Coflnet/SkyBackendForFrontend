@@ -24,7 +24,8 @@ public class IntroductionAgeDaysDetailedFlipFilter : DetailedFlipFilter
             state.ExistingTags = new HashSet<string>(DiHandler.GetService<ItemDetails>().TagLookup.Keys);
         }
         
-        var items = service.GetIntroductionAge(days);
-        return flip => items.Contains(flip.Auction.Tag) || !state.ExistingTags.Contains(flip.Auction.Tag);
+        var introAge = service.State.IntroductionAge;
+        service.GetIntroductionAge(days); // ensure key exists
+        return flip => introAge[days].Contains(flip.Auction.Tag) || !state.ExistingTags.Contains(flip.Auction.Tag);
     }
 }

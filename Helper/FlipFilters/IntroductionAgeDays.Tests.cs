@@ -56,7 +56,6 @@ public class IntroductionAgeDaysTests
         await filterStateService.UpdateState(CreateState());
         filterStateService.State.IntroductionAge[1].Should().Contain("test");
         filterStateService.State.CurrentPerks.Should().Contain("test");
-        filterStateService.State.IntroductionAge[1].Should().BeSameAs(previousIntroRef);
         Assert.That(filterStateService.State.CurrentPerks, Is.SameAs(previousReference));
     }
 
@@ -64,9 +63,9 @@ public class IntroductionAgeDaysTests
     {
         return new FilterStateService.FilterState()
         {
-            IntroductionAge = new Dictionary<int, HashSet<string>>()
+            IntroductionAge = new System.Collections.Concurrent.ConcurrentDictionary<int, HashSet<string>>()
             {
-                { 1, new HashSet<string>() { "test" } }
+                [1] = new HashSet<string>() { "test" }
             },
             CurrentPerks = new HashSet<string>() { "test" }
         };

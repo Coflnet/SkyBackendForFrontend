@@ -25,7 +25,7 @@ public class FilterStateService
         public string NextMayor { get; set; }
         public string PreviousMayor { get; set; }
         public DateTime LastUpdate { get; set; }
-        public Dictionary<int, HashSet<string>> IntroductionAge { get; set; } = new();
+        public ConcurrentDictionary<int, HashSet<string>> IntroductionAge { get; set; } = new();
         public HashSet<string> ExistingTags { get; set; } = new();
         public HashSet<string> CurrentPerks { get; set; } = new();
         public HashSet<string> NextPerks { get; set; } = new();
@@ -96,11 +96,7 @@ public class FilterStateService
                 logger.LogError("Could not load new items from {0} days", item.Key);
                 continue;
             }
-            item.Value.Clear();
-            foreach (var newItem in newItems)
-            {
-                item.Value.Add(newItem);
-            }
+            State.IntroductionAge[item.Key] = new HashSet<string>(newItems);
         }
         await LoadKnownYoutubersAsync();
         logger.LogInformation("Loaded {0} item tags", State.ExistingTags.Count);
@@ -210,7 +206,7 @@ public class FilterStateService
 
     public HashSet<string> GetIntroductionAge(int days)
     {
-        if (!State.IntroductionAge.ContainsKey(days))
+        if (!State.IntroductionAge.TryGetValue(days, out var existing))
         {
             var items = itemsApi.ItemsRecentGetAsync(days).Result;
             if (items == null && days == 1)
@@ -220,9 +216,10 @@ public class FilterStateService
                 Activity.Current?.AddTag("error", "could_not_load");
                 throw new CoflnetException("could_not_load", $"Could not load new items from {days} days");
             }
-            State.IntroductionAge[days] = new HashSet<string>(items);
+            existing = new HashSet<string>(items);
+            State.IntroductionAge[days] = existing;
         }
-        return State.IntroductionAge[days];
+        return existing;
     }
 
     public async Task UpdateState(FilterState newState)
@@ -261,25 +258,13 @@ public class FilterStateService
                     localSet.Add(item);
                 }
             }
-            else if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
+            else if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(ConcurrentDictionary<,>))
             {
-                var localDict = (Dictionary<int, HashSet<string>>)property.GetValue(local);
-                var newDict = (Dictionary<int, HashSet<string>>)property.GetValue(newState);
+                var localDict = (ConcurrentDictionary<int, HashSet<string>>)property.GetValue(local);
+                var newDict = (ConcurrentDictionary<int, HashSet<string>>)property.GetValue(newState);
                 foreach (var item in newDict)
                 {
-                    if (!localDict.ContainsKey(item.Key))
-                    {
-                        localDict[item.Key] = new HashSet<string>();
-                    }
-                    else
-                    {
-                        var localElem = localDict[item.Key];
-                        localElem.Clear();
-                        foreach (var itemValue in newDict[item.Key])
-                        {
-                            localElem.Add(itemValue);
-                        }
-                    }
+                    localDict[item.Key] = new HashSet<string>(item.Value);
                 }
             }
             else
