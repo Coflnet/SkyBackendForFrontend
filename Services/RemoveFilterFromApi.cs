@@ -1,5 +1,5 @@
 using Swashbuckle.AspNetCore.SwaggerGen;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using System;
 using Coflnet.Sky.Core;
 
@@ -14,7 +14,7 @@ public class RemoveFilterFromApi : IDocumentFilter
 
 public class RemoveAuctionFromApi : ISchemaFilter
 {
-    public void Apply(OpenApiSchema schema, SchemaFilterContext context)
+    public void Apply(IOpenApiSchema schema, SchemaFilterContext context)
     {
         context.SchemaRepository.Schemas.Remove("ApiSaveAuction");
         context.SchemaRepository.Schemas.Remove("FilterQuery");
