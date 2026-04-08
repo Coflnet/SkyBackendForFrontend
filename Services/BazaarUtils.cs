@@ -10,16 +10,28 @@ public class BazaarUtils
     {
         if (tag.StartsWith("ENCHANTMENT_"))
         {
-            // remove enchant from end
-            name = name.Substring(0, name.Length - 10);
-            var number = Regex.Match(tag, @"\d+").Value;
-            var converted = Roman.To(int.Parse(number));
-            name = $"{name.Trim()} {converted}"
+            // Build enchantment names from the item tag to avoid brittle display-name parsing.
+            var enchantTag = tag.Replace("ENCHANTMENT_", "");
+            var numberMatch = Regex.Match(enchantTag, @"_(\d+)$");
+            var number = numberMatch.Success ? numberMatch.Groups[1].Value : null;
+            if (numberMatch.Success)
+            {
+                enchantTag = enchantTag.Substring(0, enchantTag.Length - numberMatch.Value.Length);
+            }
+
+            var enchantName = enchantTag.ToLowerInvariant().Replace("_", " ");
+            name = number == null
+                ? enchantName
+                : $"{enchantName} {Roman.To(int.Parse(number))}";
+
+            name = name
                 .Replace("reiterate", "duplex")
                 .Replace("syphon", "drain")
                 .Replace("bobbin time", "bobbin' time")
                 .Replace("turbo ", "turbo-")
                 .Replace("pristine", "prismatic"); // renamed enchantment
+
+            name = Regex.Replace(name, @"(^|[\s-])[a-z]", m => m.Value.ToUpperInvariant());
         }
         if (tag.StartsWith("ENCHANTMENT_ULTIMATE"))
         {
