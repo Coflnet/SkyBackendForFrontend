@@ -297,6 +297,12 @@ namespace Coflnet.Sky.Commands.Shared
 
             // Get recent samples (top 60 by End)
             var recentSamples = recentSamplesBuffer.OrderByDescending(a => a.End).Take(60).ToList();
+            var averageSellTimeSeconds = groupedResult
+                .Where(a => a != null && a.AuctionCount > 0)
+                .Select(a => a.SellTimeSum / (double)a.AuctionCount)
+                .DefaultIfEmpty(0.0)
+                .Average();
+
             return new PriceStatistics()
             {
                 TotalAuctions = groupedResult.Sum(a => a.AuctionCount),
@@ -307,7 +313,7 @@ namespace Coflnet.Sky.Commands.Shared
                 TotalSellers = groupedResult.SelectMany(a => a.Sellers).Distinct().Count(),
                 TotalBids = groupedResult.Sum(a => a.Bids.Count()),
                 BinCount = groupedResult.Sum(a => a.BinCount),
-                AverageSellTimeSeconds = (long)groupedResult.Where(a => a.AuctionCount > 0).Average(a => a.SellTimeSum / a.AuctionCount),
+                AverageSellTimeSeconds = (long)averageSellTimeSeconds,
                 TotalListed = (int)groupedResult.Sum(a => a.Count),
                 Prices = groupedResult.Select(i => new AveragePrice()
                 {
