@@ -342,6 +342,10 @@ namespace Coflnet.Sky.Commands.Shared
             public long MaxPrice { get; set; }
             public double BinPercentage { get; set; }
             public double SalesPerDay { get; set; }
+            public List<HourlyStat> HourlyBreakdown { get; set; } = new();
+            public double PriceStdDev { get; set; }
+            public double PriceCoeffVariation { get; set; }
+            public List<SellerShare> TopSellers { get; set; } = new();
         }
 
         public class VolumeBucket
@@ -360,6 +364,21 @@ namespace Coflnet.Sky.Commands.Shared
             public double AvgSellTimeSeconds { get; set; }
             public string SpeedCategory { get; set; }
             public int SampleCount { get; set; }
+        }
+
+        public class HourlyStat
+        {
+            public int Hour { get; set; }
+            public int Count { get; set; }
+            public double AvgPrice { get; set; }
+            public double AvgSellTimeSeconds { get; set; }
+        }
+
+        public class SellerShare
+        {
+            public string Seller { get; set; }
+            public int Count { get; set; }
+            public double Percentage { get; set; }
         }
 
         /// <summary>
@@ -405,7 +424,8 @@ namespace Coflnet.Sky.Commands.Shared
                     PricePerUnit = a.HighestBidAmount / a.Count,
                     Start = a.Start,
                     End = a.End,
-                    IsBin = a.Bin
+                    IsBin = a.Bin,
+                    SellerId = a.SellerId
                 })
                 .AsNoTracking()
                 .ToListAsync(timeout);
@@ -437,6 +457,14 @@ namespace Coflnet.Sky.Commands.Shared
             var allPrices = new List<long>(rawData.Count);
             var allSellTimes = new List<double>(rawData.Count);
 
+            // Hourly breakdown (24 hours)
+            var hourlyCounts = new int[24];
+            var hourlyPriceSums = new double[24];
+            var hourlySellTimeSums = new double[24];
+
+            // Seller tracking
+            var sellerCounts = new Dictionary<int, int>();
+
             foreach (var d in rawData)
             {
                 var sellTimeSeconds = Math.Max(0, (d.End - d.Start).TotalSeconds);
@@ -462,6 +490,20 @@ namespace Coflnet.Sky.Commands.Shared
                 allPrices.Add(d.PricePerUnit);
                 allSellTimes.Add(sellTimeSeconds);
                 if (d.IsBin) binCount++;
+
+                // Hourly
+                var hour = d.End.Hour;
+                hourlyCounts[hour]++;
+                hourlyPriceSums[hour] += d.PricePerUnit;
+                hourlySellTimeSums[hour] += sellTimeSeconds;
+
+                // Seller
+                if (d.SellerId != 0)
+                {
+                    if (!sellerCounts.TryGetValue(d.SellerId, out var cnt))
+                        cnt = 0;
+                    sellerCounts[d.SellerId] = cnt + 1;
+                }
             }
 
             allPrices.Sort();
@@ -478,20 +520,55 @@ namespace Coflnet.Sky.Commands.Shared
                 return "VERY_SLOW";
             }
 
+            // Price volatility (standard deviation / coefficient of variation)
+            var avgPriceVal = rawData.Count > 0 ? totalPrice / rawData.Count : 0;
+            double sumSquaredDiffs = 0;
+            foreach (var p in allPrices)
+                sumSquaredDiffs += (p - avgPriceVal) * (p - avgPriceVal);
+            var priceStdDev = rawData.Count > 1 ? Math.Sqrt(sumSquaredDiffs / (rawData.Count - 1)) : 0;
+            var priceCV = avgPriceVal > 0 ? priceStdDev / avgPriceVal : 0;
+
             var result = new AdvancedAnalysisResult
             {
                 TotalSales = rawData.Count,
                 AvgSellTimeSeconds = rawData.Count > 0 ? totalSellTime / rawData.Count : 0,
                 MedianSellTimeSeconds = medianSellTime,
-                AvgPrice = rawData.Count > 0 ? totalPrice / rawData.Count : 0,
+                AvgPrice = avgPriceVal,
                 MedianPrice = medianPrice,
                 MinPrice = minPrice,
                 MaxPrice = maxPrice,
                 BinPercentage = rawData.Count > 0 ? (double)binCount / rawData.Count * 100 : 0,
                 SalesPerDay = rawData.Count > 0 ? rawData.Count / Math.Max(1, (end - start).TotalDays) : 0,
                 VolumeBuckets = new List<VolumeBucket>(numVolumeBuckets),
-                SellSpeedBuckets = new List<SellSpeedBucket>(numSpeedBuckets)
+                SellSpeedBuckets = new List<SellSpeedBucket>(numSpeedBuckets),
+                PriceStdDev = priceStdDev,
+                PriceCoeffVariation = priceCV
             };
+
+            // Hourly breakdown
+            for (int h = 0; h < 24; h++)
+            {
+                result.HourlyBreakdown.Add(new HourlyStat
+                {
+                    Hour = h,
+                    Count = hourlyCounts[h],
+                    AvgPrice = hourlyCounts[h] > 0 ? hourlyPriceSums[h] / hourlyCounts[h] : 0,
+                    AvgSellTimeSeconds = hourlyCounts[h] > 0 ? hourlySellTimeSums[h] / hourlyCounts[h] : 0
+                });
+            }
+
+            // Top sellers
+            var topSellers = sellerCounts
+                .OrderByDescending(kvp => kvp.Value)
+                .Take(5)
+                .Select(kvp => new SellerShare
+                {
+                    Seller = kvp.Key.ToString(),
+                    Count = kvp.Value,
+                    Percentage = rawData.Count > 0 ? (double)kvp.Value / rawData.Count * 100 : 0
+                })
+                .ToList();
+            result.TopSellers = topSellers;
 
             for (int i = 0; i < numVolumeBuckets; i++)
             {
