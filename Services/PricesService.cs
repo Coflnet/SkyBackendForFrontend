@@ -329,6 +329,178 @@ namespace Coflnet.Sky.Commands.Shared
         }
 
 
+        public class AdvancedAnalysisResult
+        {
+            public List<VolumeBucket> VolumeBuckets { get; set; } = new();
+            public List<SellSpeedBucket> SellSpeedBuckets { get; set; } = new();
+            public int TotalSales { get; set; }
+            public double AvgSellTimeSeconds { get; set; }
+            public double AvgPrice { get; set; }
+            public double MedianPrice { get; set; }
+        }
+
+        public class VolumeBucket
+        {
+            public long MinPrice { get; set; }
+            public long MaxPrice { get; set; }
+            public long AvgPrice { get; set; }
+            public int Count { get; set; }
+        }
+
+        public class SellSpeedBucket
+        {
+            public long MinPrice { get; set; }
+            public long MaxPrice { get; set; }
+            public long AvgPrice { get; set; }
+            public double AvgSellTimeSeconds { get; set; }
+            public string SpeedCategory { get; set; }
+            public int SampleCount { get; set; }
+        }
+
+        /// <summary>
+        /// Computes advanced analysis data: volume clustering by price and sell speed by price bucket.
+        /// Pushes aggregation to the database via EF where possible.
+        /// </summary>
+        public async Task<AdvancedAnalysisResult> GetAdvancedAnalysis(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
+        {
+            var itemId = GetItemId(itemTag);
+            var baseSelect = context.Auctions
+                .Where(a => a.ItemId == itemId && a.End > start && a.End <= end && a.HighestBidAmount > 0);
+
+            if (filters != null && filters.Count > 0)
+            {
+                filters["ItemId"] = itemId.ToString();
+                baseSelect = FilterEngine.AddFilters(baseSelect, filters);
+            }
+
+            var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20)).Token;
+
+            // Step 1: Get price range from DB
+            var priceStats = await baseSelect
+                .GroupBy(a => 1)
+                .Select(g => new
+                {
+                    MinPrice = g.Min(a => a.HighestBidAmount / a.Count),
+                    MaxPrice = g.Max(a => a.HighestBidAmount / a.Count),
+                    TotalCount = g.Count()
+                })
+                .AsNoTracking()
+                .FirstOrDefaultAsync(timeout);
+
+            if (priceStats == null || priceStats.TotalCount == 0)
+                return new AdvancedAnalysisResult();
+
+            // Step 2: Fetch price + sell time data (limit to 50k for performance)
+            var rawData = await baseSelect
+                .OrderByDescending(a => a.End)
+                .Take(50_000)
+                .Select(a => new
+                {
+                    PricePerUnit = a.HighestBidAmount / a.Count,
+                    SellTimeSeconds = (long)(a.End - a.Start).TotalSeconds
+                })
+                .AsNoTracking()
+                .ToListAsync(timeout);
+
+            if (rawData.Count == 0)
+                return new AdvancedAnalysisResult();
+
+            // Step 3: Bucket in C# (15 buckets for volume, 10 for sell speed)
+            const int numVolumeBuckets = 15;
+            const int numSpeedBuckets = 10;
+            var minPrice = priceStats.MinPrice;
+            var maxPrice = priceStats.MaxPrice;
+            var priceRange = maxPrice - minPrice;
+
+            if (priceRange <= 0)
+                priceRange = 1;
+
+            var volumeBucketWidth = (double)priceRange / numVolumeBuckets;
+            var speedBucketWidth = (double)priceRange / numSpeedBuckets;
+
+            var volumeBuckets = new int[numVolumeBuckets];
+            var volumeBucketSums = new long[numVolumeBuckets];
+            var speedBucketSellTime = new double[numSpeedBuckets];
+            var speedBucketCounts = new int[numSpeedBuckets];
+            var speedBucketSums = new long[numSpeedBuckets];
+            double totalSellTime = 0;
+            double totalPrice = 0;
+            var allPrices = new List<long>(rawData.Count);
+
+            foreach (var d in rawData)
+            {
+                // Volume bucket
+                var vIdx = (int)((d.PricePerUnit - minPrice) / volumeBucketWidth);
+                if (vIdx >= numVolumeBuckets) vIdx = numVolumeBuckets - 1;
+                if (vIdx < 0) vIdx = 0;
+                volumeBuckets[vIdx]++;
+                volumeBucketSums[vIdx] += d.PricePerUnit;
+
+                // Speed bucket
+                var sIdx = (int)((d.PricePerUnit - minPrice) / speedBucketWidth);
+                if (sIdx >= numSpeedBuckets) sIdx = numSpeedBuckets - 1;
+                if (sIdx < 0) sIdx = 0;
+                var clampedSellTime = d.SellTimeSeconds < 0 ? 0 : Math.Min(d.SellTimeSeconds, 7 * 86400);
+                speedBucketSellTime[sIdx] += clampedSellTime;
+                speedBucketCounts[sIdx]++;
+                speedBucketSums[sIdx] += d.PricePerUnit;
+
+                totalSellTime += clampedSellTime;
+                totalPrice += d.PricePerUnit;
+                allPrices.Add(d.PricePerUnit);
+            }
+
+            allPrices.Sort();
+            var median = allPrices.Count > 0 ? allPrices[allPrices.Count / 2] : 0;
+
+            static string CategoriseSellSpeed(double avgSeconds)
+            {
+                if (avgSeconds < 3600) return "FAST";
+                if (avgSeconds < 6 * 3600) return "MED";
+                if (avgSeconds < 24 * 3600) return "SLOW";
+                return "VERY_SLOW";
+            }
+
+            var result = new AdvancedAnalysisResult
+            {
+                TotalSales = rawData.Count,
+                AvgSellTimeSeconds = rawData.Count > 0 ? totalSellTime / rawData.Count : 0,
+                AvgPrice = rawData.Count > 0 ? totalPrice / rawData.Count : 0,
+                MedianPrice = median,
+                VolumeBuckets = new List<VolumeBucket>(numVolumeBuckets),
+                SellSpeedBuckets = new List<SellSpeedBucket>(numSpeedBuckets)
+            };
+
+            for (int i = 0; i < numVolumeBuckets; i++)
+            {
+                if (volumeBuckets[i] == 0) continue;
+                result.VolumeBuckets.Add(new VolumeBucket
+                {
+                    MinPrice = minPrice + (long)(i * volumeBucketWidth),
+                    MaxPrice = minPrice + (long)((i + 1) * volumeBucketWidth),
+                    AvgPrice = volumeBuckets[i] > 0 ? volumeBucketSums[i] / volumeBuckets[i] : 0,
+                    Count = volumeBuckets[i]
+                });
+            }
+
+            for (int i = 0; i < numSpeedBuckets; i++)
+            {
+                if (speedBucketCounts[i] == 0) continue;
+                var avgSell = speedBucketSellTime[i] / speedBucketCounts[i];
+                result.SellSpeedBuckets.Add(new SellSpeedBucket
+                {
+                    MinPrice = minPrice + (long)(i * speedBucketWidth),
+                    MaxPrice = minPrice + (long)((i + 1) * speedBucketWidth),
+                    AvgPrice = speedBucketSums[i] / speedBucketCounts[i],
+                    AvgSellTimeSeconds = avgSell,
+                    SpeedCategory = CategoriseSellSpeed(avgSell),
+                    SampleCount = speedBucketCounts[i]
+                });
+            }
+
+            return result;
+        }
+
         public async Task<IEnumerable<AveragePrice>> GetHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
         {
             var itemId = GetItemId(itemTag);
