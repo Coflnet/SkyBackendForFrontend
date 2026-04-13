@@ -335,8 +335,13 @@ namespace Coflnet.Sky.Commands.Shared
             public List<SellSpeedBucket> SellSpeedBuckets { get; set; } = new();
             public int TotalSales { get; set; }
             public double AvgSellTimeSeconds { get; set; }
+            public double MedianSellTimeSeconds { get; set; }
             public double AvgPrice { get; set; }
             public double MedianPrice { get; set; }
+            public long MinPrice { get; set; }
+            public long MaxPrice { get; set; }
+            public double BinPercentage { get; set; }
+            public double SalesPerDay { get; set; }
         }
 
         public class VolumeBucket
@@ -390,14 +395,17 @@ namespace Coflnet.Sky.Commands.Shared
             if (priceStats == null || priceStats.TotalCount == 0)
                 return new AdvancedAnalysisResult();
 
-            // Step 2: Fetch price + sell time data (limit to 50k for performance)
+            // Step 2: Fetch price + time data (limit to 50k for performance)
+            // Note: Fetch Start/End separately because (End-Start).TotalSeconds can't be translated to SQL
             var rawData = await baseSelect
                 .OrderByDescending(a => a.End)
                 .Take(50_000)
                 .Select(a => new
                 {
                     PricePerUnit = a.HighestBidAmount / a.Count,
-                    SellTimeSeconds = (long)(a.End - a.Start).TotalSeconds
+                    Start = a.Start,
+                    End = a.End,
+                    IsBin = a.Bin
                 })
                 .AsNoTracking()
                 .ToListAsync(timeout);
@@ -425,10 +433,15 @@ namespace Coflnet.Sky.Commands.Shared
             var speedBucketSums = new long[numSpeedBuckets];
             double totalSellTime = 0;
             double totalPrice = 0;
+            int binCount = 0;
             var allPrices = new List<long>(rawData.Count);
+            var allSellTimes = new List<double>(rawData.Count);
 
             foreach (var d in rawData)
             {
+                var sellTimeSeconds = Math.Max(0, (d.End - d.Start).TotalSeconds);
+                sellTimeSeconds = Math.Min(sellTimeSeconds, 7 * 86400); // cap at 7 days
+
                 // Volume bucket
                 var vIdx = (int)((d.PricePerUnit - minPrice) / volumeBucketWidth);
                 if (vIdx >= numVolumeBuckets) vIdx = numVolumeBuckets - 1;
@@ -440,24 +453,28 @@ namespace Coflnet.Sky.Commands.Shared
                 var sIdx = (int)((d.PricePerUnit - minPrice) / speedBucketWidth);
                 if (sIdx >= numSpeedBuckets) sIdx = numSpeedBuckets - 1;
                 if (sIdx < 0) sIdx = 0;
-                var clampedSellTime = d.SellTimeSeconds < 0 ? 0 : Math.Min(d.SellTimeSeconds, 7 * 86400);
-                speedBucketSellTime[sIdx] += clampedSellTime;
+                speedBucketSellTime[sIdx] += sellTimeSeconds;
                 speedBucketCounts[sIdx]++;
                 speedBucketSums[sIdx] += d.PricePerUnit;
 
-                totalSellTime += clampedSellTime;
+                totalSellTime += sellTimeSeconds;
                 totalPrice += d.PricePerUnit;
                 allPrices.Add(d.PricePerUnit);
+                allSellTimes.Add(sellTimeSeconds);
+                if (d.IsBin) binCount++;
             }
 
             allPrices.Sort();
-            var median = allPrices.Count > 0 ? allPrices[allPrices.Count / 2] : 0;
+            allSellTimes.Sort();
+            var medianPrice = allPrices.Count > 0 ? allPrices[allPrices.Count / 2] : 0;
+            var medianSellTime = allSellTimes.Count > 0 ? allSellTimes[allSellTimes.Count / 2] : 3600;
 
-            static string CategoriseSellSpeed(double avgSeconds)
+            // Auto-adjust speed categories based on median sell time
+            string CategoriseSellSpeed(double avgSeconds)
             {
-                if (avgSeconds < 3600) return "FAST";
-                if (avgSeconds < 6 * 3600) return "MED";
-                if (avgSeconds < 24 * 3600) return "SLOW";
+                if (avgSeconds < medianSellTime * 0.5) return "FAST";
+                if (avgSeconds < medianSellTime) return "MED";
+                if (avgSeconds < medianSellTime * 2) return "SLOW";
                 return "VERY_SLOW";
             }
 
@@ -465,8 +482,13 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 TotalSales = rawData.Count,
                 AvgSellTimeSeconds = rawData.Count > 0 ? totalSellTime / rawData.Count : 0,
+                MedianSellTimeSeconds = medianSellTime,
                 AvgPrice = rawData.Count > 0 ? totalPrice / rawData.Count : 0,
-                MedianPrice = median,
+                MedianPrice = medianPrice,
+                MinPrice = minPrice,
+                MaxPrice = maxPrice,
+                BinPercentage = rawData.Count > 0 ? (double)binCount / rawData.Count * 100 : 0,
+                SalesPerDay = rawData.Count > 0 ? rawData.Count / Math.Max(1, (end - start).TotalDays) : 0,
                 VolumeBuckets = new List<VolumeBucket>(numVolumeBuckets),
                 SellSpeedBuckets = new List<SellSpeedBucket>(numSpeedBuckets)
             };
