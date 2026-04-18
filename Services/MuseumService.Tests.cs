@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
 using Moq;
 using Microsoft.Extensions.Logging.Abstractions;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace Coflnet.Sky.Commands.Shared;
 

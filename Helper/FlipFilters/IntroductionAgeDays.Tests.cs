@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Castle.Core.Logging;
 using Coflnet.Sky.Core;
 using Coflnet.Sky.Items.Client.Api;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NUnit.Framework;

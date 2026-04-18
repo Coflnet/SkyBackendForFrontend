@@ -5,7 +5,7 @@ using Coflnet.Sky.Commands.Tests;
 using System.Threading.Tasks;
 using Coflnet.Sky.Filter;
 using System.Linq;
-using FluentAssertions;
+using AwesomeAssertions;
 using System.Collections.Generic;
 using System;
 

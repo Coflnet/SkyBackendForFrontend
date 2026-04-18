@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Coflnet.Sky.Core;
 using Coflnet.Sky.Filter;
-using FluentAssertions;
+using AwesomeAssertions;
 using NUnit.Framework;
 
 namespace Coflnet.Sky.Commands.Shared;

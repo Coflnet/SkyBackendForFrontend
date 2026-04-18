@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using System;
 using NUnit.Framework;
 using Coflnet.Sky.Items.Client.Api;
-using FluentAssertions;
+using AwesomeAssertions;
 using Newtonsoft.Json;
 
 namespace Coflnet.Sky.Commands.Shared;

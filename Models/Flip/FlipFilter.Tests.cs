@@ -457,8 +457,7 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-
-
+#pragma warning disable CS0414
         private string SpiritSettings = """
         {
     "filters": null,
@@ -17989,5 +17988,6 @@ namespace Coflnet.Sky.Commands.Shared
     "lastChange": "minprofit"
 }
 """;
+#pragma warning restore CS0414
     }
 }

@@ -15,7 +15,7 @@ namespace Coflnet.Sky.Commands.Shared
             this.Add(GetCleardName<TDerived>(), filter);
         }
 
-        public static string GetCleardName<TDerived>() where TDerived : T
+        public new static string GetCleardName<TDerived>() where TDerived : T
         {
             return typeof(TDerived).Name.Replace(typeof(T).Name, "");
         }

@@ -78,7 +78,7 @@ public class ChestView
     /// The name of the chest
     /// </summary>
     [Key(1)]
-    public string Name;
+    public string Name = string.Empty;
     /// <summary>
     /// The position of the chest (if inventory is, also, a chest)
     /// </summary>

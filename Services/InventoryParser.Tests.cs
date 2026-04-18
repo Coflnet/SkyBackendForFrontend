@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Coflnet.Sky.Core;
-using FluentAssertions;
+using AwesomeAssertions;
 using MessagePack;
 using Microsoft.AspNetCore.JsonPatch.Internal;
 using Newtonsoft.Json;

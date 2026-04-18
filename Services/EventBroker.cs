@@ -25,7 +25,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         public ChannelMessageQueue SubEvents(string userId, Action<MessageContainer> onEvent)
         {
-            var sub = con.GetSubscriber().Subscribe("uev" + userId);
+            var sub = con.GetSubscriber().Subscribe(RedisChannel.Literal("uev" + userId));
             sub.OnMessage((msg) =>
             {
                 var deserialized = JsonConvert.DeserializeObject<MessageContainer>(msg.Message);
