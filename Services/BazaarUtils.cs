@@ -8,6 +8,12 @@ public class BazaarUtils
 {
     public static string GetSearchValue(string tag, string name)
     {
+        if ((string.IsNullOrWhiteSpace(name) || string.Equals(name, tag, StringComparison.Ordinal))
+            && tag.StartsWith("SHARD_", StringComparison.Ordinal))
+        {
+            return tag["SHARD_".Length..].ToLowerInvariant().Replace("_", " ") + " shard";
+        }
+
         if (tag.StartsWith("ENCHANTMENT_"))
         {
             // Build enchantment names from the item tag to avoid brittle display-name parsing.
