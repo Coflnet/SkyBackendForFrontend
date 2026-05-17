@@ -128,7 +128,7 @@ namespace Coflnet.Sky.Commands.Shared
             if (IsFinderBlocked(flip.Finder))
                 return (false, "finder " + flip.Finder.ToString());
 
-            if (OnlyBin && !flip.Auction.Bin)
+            if (OnlyBin && !flip.Auction.Bin && flip.Finder != LowPricedAuction.FinderType.Bazaar)
                 return (false, "not bin");
 
             if (BlackListMatcher == null)
