@@ -227,7 +227,8 @@ public class MuseumService
         try
         {
             var profitableCraftsTask = GetCrafts();
-
+            if (string.IsNullOrEmpty(profileId))
+                profileId = "current";
             // Filter craftable items based on player's progress
             var craftableItems = await profileClient.FilterProfitableCrafts(profitableCraftsTask, playerId, profileId);
             Activity.Current.Log("Found " + craftableItems.Count + " craftable items for player " + playerId);
