@@ -243,7 +243,7 @@ public class InventoryParser
             }
         }
 
-        string name = item.nbt.value?.display?.value?.Name?.value ?? GetItemName(item);
+        string name = GetItemName(item);
         if (name?.StartsWith("{") ?? false)
             name = ParseTextComponent(name);
         auction = new SaveAuction
@@ -255,9 +255,7 @@ public class InventoryParser
             Uuid = GetAttributeValue(extraAttributes, "uuid") ?? Random.Shared.Next().ToString(),
         };
 
-        var description = item.nbt.value?.display?.value?.Lore?.value?.value?.ToObject<string[]>() as string[];
-        if (description == null)
-            description = GetDescription(item);
+        string[] description = GetDescription(item);
         if (description != null)
         {
             if (description.FirstOrDefault()?.StartsWith("{") == true)
@@ -519,7 +517,9 @@ public class InventoryParser
         var token = item as JToken ?? JToken.FromObject(item);
         return token.SelectToken("nbt.value.ExtraAttributes.value") as JObject
             ?? token["ExtraAttributes"] as JObject
-            ?? token.SelectToken("nbt['minecraft:custom_data']") as JObject;
+            ?? token.SelectToken("nbt['minecraft:custom_data']") as JObject
+            ?? token.SelectToken("components[?(@.type == 'custom_data')].data.value") as JObject
+            ?? token.SelectToken("components[?(@.type == 'minecraft:custom_data')].data.value") as JObject;
     }
 
     private static bool IsTypedExtraAttributes(JObject extraAttributes)
@@ -548,6 +548,11 @@ public class InventoryParser
         if (azaleaName != null)
             return ParseTextComponent(azaleaName);
 
+        var componentName = token.SelectToken("components[?(@.type == 'custom_name')].data") 
+                         ?? token.SelectToken("components[?(@.type == 'minecraft:custom_name')].data");
+        if (componentName != null)
+            return ParseTextComponent(UnwrapNbt(componentName));
+
         return token["displayName"]?.ToString();
     }
 
@@ -562,7 +567,69 @@ public class InventoryParser
         if (azaleaLore != null)
             return azaleaLore.Select(ParseTextComponent).ToArray();
 
+        var componentLore = token.SelectToken("components[?(@.type == 'lore')].data") as JArray
+                         ?? token.SelectToken("components[?(@.type == 'minecraft:lore')].data") as JArray;
+        if (componentLore != null)
+            return componentLore.Select(c => ParseTextComponent(UnwrapNbt(c))).ToArray();
+
         return null;
+    }
+
+    private static JToken UnwrapNbt(JToken token)
+    {
+        if (token is JObject obj)
+        {
+            if (obj["type"] != null && obj["value"] != null)
+            {
+                var type = obj["type"].ToString();
+                var value = obj["value"];
+                if (type == "list")
+                {
+                    if (value is JObject listObj && listObj["type"]?.ToString() == "compound" && listObj["value"] is JArray arr)
+                        return new JArray(arr.Select(UnwrapNbt));
+                    else if (value is JObject listObj2 && listObj2["value"] is JArray arr2)
+                        return new JArray(arr2.Select(UnwrapNbt));
+                    else if (value is JArray arr3)
+                        return new JArray(arr3.Select(UnwrapNbt));
+                }
+                else if (type == "compound")
+                {
+                    if (value is JObject dict)
+                    {
+                        var newObj = new JObject();
+                        foreach (var prop in dict.Properties())
+                            newObj[prop.Name] = UnwrapNbt(prop.Value);
+                        return newObj;
+                    }
+                    else if (value is JArray arr)
+                    {
+                        var newObj = new JObject();
+                        foreach (var item in arr)
+                        {
+                            if (item is JObject itemObj)
+                            {
+                                foreach(var prop in itemObj.Properties())
+                                    newObj[prop.Name] = UnwrapNbt(prop.Value);
+                            }
+                        }
+                        return newObj;
+                    }
+                }
+                return UnwrapNbt(value);
+            }
+            else
+            {
+                var newObj = new JObject();
+                foreach (var prop in obj.Properties())
+                    newObj[prop.Name] = UnwrapNbt(prop.Value);
+                return newObj;
+            }
+        }
+        else if (token is JArray arr)
+        {
+            return new JArray(arr.Select(UnwrapNbt));
+        }
+        return token;
     }
 
     private static string ParseTextComponent(JToken token)
