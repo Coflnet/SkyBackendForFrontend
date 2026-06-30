@@ -351,20 +351,34 @@ public class InventoryParser
                             f => (string)f.GetValue(null));
         }
         public JArray Extra { get; set; }
+        public string Text { get; set; }
+        public bool Bold { get; set; }
+        public bool Italic { get; set; }
+        public string Color { get; set; }
+
+        private static string Render(TextElement e)
+        {
+            return $"{(e.Bold ? McColorCodes.BOLD : String.Empty)}{(e.Italic ? McColorCodes.ITALIC : String.Empty)}{(e.Color != null && colorList.TryGetValue(e.Color, out var c) ? c : String.Empty)}{e.Text}";
+        }
 
         public string To1_08()
         {
+            // a text component may carry its own text (flat components) and/or nested `extra` children
+            var result = string.IsNullOrEmpty(Text)
+                ? string.Empty
+                : Render(new TextElement { Text = Text, Bold = Bold, Italic = Italic, Color = Color });
+
             if (Extra == null)
-                return string.Empty;
-            
-            var elements = Extra.Select(token => 
+                return result;
+
+            var elements = Extra.Select(token =>
             {
                 if (token.Type == JTokenType.String)
                     return new TextElement { Text = token.ToString() };
                 return token.ToObject<TextElement>();
             });
 
-            return string.Join("", elements.Select(e => $"{(e.Bold ? McColorCodes.BOLD : String.Empty)}{(e.Italic ? McColorCodes.ITALIC : String.Empty)}{(e.Color != null && colorList.TryGetValue(e.Color, out var c) ? c : String.Empty)}{e.Text}"));
+            return result + string.Join("", elements.Select(Render));
         }
     }
 

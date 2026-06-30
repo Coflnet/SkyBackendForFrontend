@@ -1043,6 +1043,82 @@ public class InventoryParserTests
     }
 
     [Test]
+    public void ParseAzaleaPetTier()
+    {
+        var parser = new InventoryParser();
+        var data = parser.Parse("""
+                {
+                    "slots": [
+                        {
+                            "count": 1,
+                            "displayName": "[Lvl 94] Enderman",
+                            "name": "minecraft:player_head",
+                            "slot": 10,
+                            "tag": "PET_ENDERMAN",
+                            "type": 1235,
+                            "nbt": {
+                                "minecraft:custom_data": {
+                                    "id": "PET",
+                                    "petInfo": "{\"type\":\"ENDERMAN\",\"active\":false,\"exp\":1.6921923468420234E7,\"tier\":\"LEGENDARY\",\"hideInfo\":false,\"heldItem\":\"CROCHET_TIGER_PLUSHIE\",\"candyUsed\":0,\"uuid\":\"52337fc3-e6e0-4f5c-887b-116b094afdab\",\"uniqueId\":\"d3118c90-a752-4851-bcfb-46b98e17214b\",\"hideRightClick\":false,\"noMove\":false,\"extraData\":{},\"petSoulbound\":false}",
+                                    "timestamp": 1782758801064,
+                                    "uuid": "52337fc3-e6e0-4f5c-887b-116b094afdab"
+                                },
+                                "minecraft:custom_name": {
+                                    "extra": [
+                                        {
+                                            "color": "gray",
+                                            "text": "[Lvl 94] "
+                                        },
+                                        {
+                                            "color": "gold",
+                                            "text": "Enderman"
+                                        }
+                                    ],
+                                    "italic": false,
+                                    "text": ""
+                                },
+                                "minecraft:lore": [
+                                    {
+                                        "color": "dark_gray",
+                                        "italic": false,
+                                        "text": "Combat Pet"
+                                    },
+                                    "",
+                                    {
+                                        "color": "yellow",
+                                        "italic": false,
+                                        "text": "Right-click to add this pet to your pet menu!"
+                                    },
+                                    "",
+                                    {
+                                        "color": "dark_gray",
+                                        "italic": false,
+                                        "text": "Can be upgraded at Kat in The Hub!"
+                                    },
+                                    {
+                                        "bold": true,
+                                        "color": "gold",
+                                        "italic": false,
+                                        "text": "LEGENDARY"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+                """).ToList();
+
+        data.Should().HaveCount(1);
+        var item = data[0];
+        item.Should().NotBeNull();
+        item.Tag.Should().Be("PET_ENDERMAN");
+        item.ItemName.Should().Be("§7[Lvl 94] §6Enderman");
+        item.Tier.Should().Be(Tier.LEGENDARY);
+        item.Uuid.Should().Be("52337fc3-e6e0-4f5c-887b-116b094afdab");
+        item.FlatenedNBT["heldItem"].Should().Be("CROCHET_TIGER_PLUSHIE");
+    }
+
+    [Test]
     public void ParseEnchantedBookToEnchantmentTag()
     {
         var parser = new InventoryParser();
