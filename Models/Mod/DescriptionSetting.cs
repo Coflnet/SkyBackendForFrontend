@@ -12,7 +12,7 @@ public class DescriptionSetting
     /// <summary>
     /// Lines and which elements to put into these lines
     /// </summary>
-    public List<List<DescriptionField>> Fields { get; set; }
+    public List<List<DescriptionField>> Fields;
     /// <summary>
     /// If black and whitelist matches should be highlighted
     /// </summary>
@@ -70,6 +70,8 @@ public class DescriptionSetting
     public bool LowballHideBreakdown;
     [SettingsDoc("Hide the worst-case total price from the lowball hover tooltip", "lbHideWorstCase")]
     public bool LowballHideWorstCase;
+    [SettingsDoc("Custom format options, not supported by all versions", true)]
+    public string CustomFormat;
 
     public HighlightInfo HighlightInfo { get; set; }
 }
