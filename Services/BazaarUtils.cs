@@ -35,6 +35,7 @@ public class BazaarUtils
                 .Replace("syphon", "drain")
                 .Replace("bobbin time", "bobbin' time")
                 .Replace("turbo ", "turbo-")
+                .Replace("pyroclasm ", "magmarizer")
                 .Replace("pristine", "prismatic"); // renamed enchantment
 
             name = Regex.Replace(name, @"(^|[\s-])[a-z]", m => m.Value.ToUpperInvariant());
