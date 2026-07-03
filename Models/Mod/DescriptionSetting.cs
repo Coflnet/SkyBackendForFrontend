@@ -26,6 +26,8 @@ public class DescriptionSetting
     public bool DisableSuggestions;
     [SettingsDoc("Disable side info display in these menus, will add any menu you type into this setting, to remove prefix with `rm `, `clear` is also an option")]
     public HashSet<string> DisableInfoIn;
+    [SettingsDoc("Bookmarked bazaar item tags, shown in the bazaar menu. Add/remove via the bazaar item page, prefix with `rm ` to remove, `clear` to remove all", "bzBookmarks")]
+    public HashSet<string> BazaarBookmarks;
 
     public static DescriptionSetting Default => new DescriptionSetting()
     {
