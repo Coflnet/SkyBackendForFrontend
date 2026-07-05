@@ -187,6 +187,11 @@ public class InventoryParser
         }
     }
 
+    private static Enchantment.EnchantmentType ParseEnchant(string key)
+    {
+        return Enum.Parse<Enchantment.EnchantmentType>(NBT.RenameEnchant(key), true);
+    }
+
     private static void FixItemTag(SaveAuction auction)
     {
         if (auction.Tag == "PET")
@@ -249,7 +254,7 @@ public class InventoryParser
         auction = new SaveAuction
         {
             Tag = GetAttributeValue(extraAttributes, "id"),
-            Enchantments = enchantments.Select(e => new Enchantment() { Type = Enum.Parse<Enchantment.EnchantmentType>(e.Key, true), Level = (byte)e.Value }).ToList(),
+            Enchantments = enchantments.Select(e => new Enchantment() { Type = ParseEnchant(e.Key), Level = (byte)e.Value }).ToList(),
             Count = item.count,
             ItemName = name,
             Uuid = GetAttributeValue(extraAttributes, "uuid") ?? Random.Shared.Next().ToString(),
@@ -399,7 +404,7 @@ public class InventoryParser
                 continue;
             }
             var enchants = extraAttributes["enchantments"]?.ToObject<Dictionary<string, int>>()?
-                    .Select(e => new Enchantment() { Type = Enum.Parse<Enchantment.EnchantmentType>(e.Key, true), Level = (byte)e.Value })
+                    .Select(e => new Enchantment() { Type = ParseEnchant(e.Key), Level = (byte)e.Value })
                     .ToList();
 
             var flatNbt = NBT.FlattenNbtData(extraAttributes.ToObject<Dictionary<string, object>>()
