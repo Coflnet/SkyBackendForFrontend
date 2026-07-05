@@ -228,6 +228,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<FilterStateService>();
             services.AddSingleton<HypixelItemService>();
             services.AddSingleton<IHypixelItemStore>(di => di.GetRequiredService<HypixelItemService>());
+            services.AddSingleton<Core.Services.ExoticColorService>();
             services.AddHttpClient();
             services.AddSingleton<IProfileClient, ProfileClient>();
             services.AddSingleton<ForgeFlipService>();
