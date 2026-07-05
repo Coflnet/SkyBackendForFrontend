@@ -28,6 +28,13 @@ public class UpdateMessage
     public string[]? Scoreboard { get; set; }
     [Key(8)]
     public string[]? Tab { get; set; }
+    /// <summary>
+    /// Id of the achievement to unlock, set when <see cref="Kind"/> is <see cref="UpdateKind.Achievement"/>.
+    /// Routed through the update pipeline (instead of an http call) so it reaches the instance that holds
+    /// the players live state, which is partitioned across replicas by player id.
+    /// </summary>
+    [Key(9)]
+    public string? AchievementId { get; set; }
 
     public override bool Equals(object? obj)
     {
@@ -54,7 +61,8 @@ public class UpdateMessage
         API = 4,
         Setting = 8,
         Scoreboard = 16,
-        Tab = 32
+        Tab = 32,
+        Achievement = 64
     }
 }
 

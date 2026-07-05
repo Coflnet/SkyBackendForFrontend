@@ -64,6 +64,13 @@ namespace Coflnet.Sky.Commands.Shared
         /// </summary>
         [DataMember(Name = "proxyOptIn")]
         public bool ProxyOptIn { get; set; }
+        /// <summary>
+        /// The emblem the user chose to display in front of their chat messages (already color coded).
+        /// Set via the emblem command from an emblem the user unlocked; read by <see cref="Coflnet.Sky.ModCommands.Services.ChatService"/>.
+        /// Null/empty means no emblem is shown.
+        /// </summary>
+        [DataMember(Name = "emblem")]
+        public string Emblem { get; set; }
     }
 
     [DataContract]
