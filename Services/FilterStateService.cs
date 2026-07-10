@@ -146,11 +146,17 @@ public class FilterStateService
             Console.WriteLine("Could not load mayor perks");
             return;
         }
-        var mayor = mayors.mayor.perks.Select(p => p.name).ToList();
+        var mayor = mayors.mayor?.perks?.Select(p => p.name).ToList();
+        if (mayor == null || mayor.Count == 0)
+        {
+            logger.LogWarning("Mayor perks came back empty, keeping previous {count} perks", State.CurrentPerks.Count);
+            return;
+        }
         var minister = mayors.mayor?.minister?.perk?.name;
-        State.CurrentPerks = new HashSet<string>(mayor);
+        var newPerks = new HashSet<string>(mayor);
         if (minister != null)
-            State.CurrentPerks.Add(minister);
+            newPerks.Add(minister);
+        State.CurrentPerks = newPerks;
         State.CurrentMayor = mayors.mayor.name.ToLower();
         var currentElection = mayors.current;
         if (currentElection == null)
