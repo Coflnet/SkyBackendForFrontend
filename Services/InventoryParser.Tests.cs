@@ -955,6 +955,32 @@ public class InventoryParserTests
     }
 
     [Test]
+    public void ParseAzaleaFormatFromTopLevelArray()
+    {
+        var item = new InventoryParser().Parse("""
+            [{
+                "count": 1,
+                "nbt": {
+                    "minecraft:custom_data": {
+                        "id": "HYPERION",
+                        "uuid": "3b49ada2-3f4a-4aea-874b-e308b5733897"
+                    },
+                    "minecraft:custom_name": "§6Hyperion",
+                    "minecraft:lore": ["§7Damage: §c+325"]
+                },
+                "name": "PlayerHead",
+                "slot": 10,
+                "displayName": "Hyperion"
+            }]
+            """).Single();
+
+        item.Tag.Should().Be("HYPERION");
+        item.Uuid.Should().Be("3b49ada2-3f4a-4aea-874b-e308b5733897");
+        item.FlatenedNBT["uuid"].Should().Be("3b49ada2-3f4a-4aea-874b-e308b5733897");
+        item.Context["lore"].Should().Be("§7Damage: §c+325");
+    }
+
+    [Test]
     public void ParseAzaleaFormatWithStringInExtra()
     {
         var parser = new InventoryParser();

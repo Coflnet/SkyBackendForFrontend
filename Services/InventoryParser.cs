@@ -127,9 +127,14 @@ public class InventoryParser
             full = data;
         if (full is JArray array)
         {
-            foreach (var item in ParseChatTriggers(array))
-                yield return item;
-            yield break;
+            if (array.OfType<JObject>().Any(item => item.SelectToken("nbt['minecraft:custom_data']") != null))
+                full = new JObject { ["slots"] = array };
+            else
+            {
+                foreach (var item in ParseChatTriggers(array))
+                    yield return item;
+                yield break;
+            }
         }
         if (full.slots == null)
         {
