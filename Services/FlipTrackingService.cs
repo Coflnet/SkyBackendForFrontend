@@ -442,8 +442,8 @@ namespace Coflnet.Sky.Commands
                     var weekStartDate = DateTime.UtcNow.RoundDown(TimeSpan.FromDays(7)).ToString("yyyy-MM-dd");
                     var boardSlug = $"sky-flippers-{weekStartDate}";
                     var looserBoard = $"sky-flippers-loosers-{weekStartDate}";
-                    await scoresApi.ScoresLeaderboardSlugPostAsync(boardSlug, new ScoreCreate(uuid, totalProfit, 100));
-                    await scoresApi.ScoresLeaderboardSlugPostAsync(looserBoard, new ScoreCreate(uuid, -totalProfit, 100));
+                    await scoresApi.AddScoreAsync(boardSlug, new ScoreCreate(uuid, totalProfit, 100));
+                    await scoresApi.AddScoreAsync(looserBoard, new ScoreCreate(uuid, -totalProfit, 100));
                 }
                 catch (Exception e)
                 {

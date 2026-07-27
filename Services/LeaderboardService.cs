@@ -38,7 +38,7 @@ public class LeaderboardService : ILeaderboardService
             weekStartDate = DateTime.UtcNow;
         var boardSlug = $"{boardName}-{weekStartDate.RoundDown(TimeSpan.FromDays(7)):yyyy-MM-dd}";
         var excludedTask = GetExcluded();
-        var leaderboardData = await scoresApi.ScoresLeaderboardSlugGetAsync(boardSlug, page * count, count);
+        var leaderboardData = (await scoresApi.GetLeaderboardAsync(boardSlug, page * count, count)).Ok() ?? [];
         var names = await playerNameApi.PlayerNameNamesBatchPostAsync(leaderboardData.Select(d => d.UserId).ToList());
         var excluded = await excludedTask;
         var entries = leaderboardData.Select(async entry =>
@@ -66,7 +66,7 @@ public class LeaderboardService : ILeaderboardService
                     {
                         PlayerId = Guid.Empty.ToString("N"),
                         PlayerName = "anonymous",
-                        Score = entry.Score,
+                        Score = entry.Score ?? 0,
                         Timestamp = DateTime.UtcNow
                     };
                 }
@@ -76,7 +76,7 @@ public class LeaderboardService : ILeaderboardService
             {
                 PlayerId = entry.UserId,
                 PlayerName = name,
-                Score = entry.Score,
+                Score = entry.Score ?? 0,
                 Timestamp = DateTime.UtcNow
             };
         });

@@ -15,7 +15,6 @@ using System.Threading.Tasks;
 using System.Threading;
 using Coflnet.Sky.FlipTracker.Client.Api;
 using Coflnet.Sky.Mayor.Client.Api;
-using Coflnet.Leaderboard.Client.Api;
 using Coflnet.Sky.Settings.Client.Api;
 using Coflnet.Sky.Filter;
 using Coflnet.Sky.EventBroker.Client.Api;
@@ -159,11 +158,14 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new MayorApiApi(config["MAYOR_BASE_URL"]);
             });
-            services.AddSingleton<IScoresApi, ScoresApi>(context =>
-            {
-                var config = context.GetRequiredService<IConfiguration>();
-                return new ScoresApi(config["LEADERBOARD_BASE_URL"]);
-            });
+            Coflnet.Leaderboard.Client.Extensions.IServiceCollectionExtensions.AddApi(
+                services,
+                options => options
+                    .AddTokens(new Coflnet.Leaderboard.Client.Client.ApiKeyToken(
+                        "",
+                        Coflnet.Leaderboard.Client.Client.ClientUtils.ApiKeyHeader.Authorization))
+                    .AddApiHttpClients((context, client) =>
+                        client.BaseAddress = new Uri(context.GetRequiredService<IConfiguration>()["LEADERBOARD_BASE_URL"])));
             services.AddSingleton<ILeaderboardService, LeaderboardService>();
             services.AddSingleton<ISettingsApi, SettingsApi>(context =>
             {
