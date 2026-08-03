@@ -9,7 +9,8 @@ namespace Coflnet.Sky.Commands.Shared
                 @"^(You cannot view this auction!|You claimed|\[Bazaar\]|\[NPC\] Kat|Cancelled"
                 + @"|You collected|\[Auction\]|BIN Auction started|You cancelled|You purchased "
                 + @"|Profile ID: |You placd a Trap|\+\d+ .* Attribute \(Level "
-                + @"|You caught |\s+Chameleon" // catching shards
+                + @"|You caught |CAPTURE! You caught |\s+Chameleon" // catching shards
+                + @"|\[NPC\] (?:Hunter Harry|Huntress Melissa)|You have been given a " // Safari NPC shard trades
                 + @"|Added items|Removed items" // stash adding notification
                 + @"|You donated your" // museum donation
                 + @"|: \d+m$" // chat lowballing discussion
