@@ -11,6 +11,7 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|Profile ID: |You placd a Trap|\+\d+ .* Attribute \(Level "
                 + @"|You caught |CAPTURE! You caught |\s+Chameleon" // catching shards
                 + @"|\[NPC\] (?:Hunter Harry|Huntress Melissa)|You have been given a " // Safari NPC shard trades
+                + @"|\s*\+[\d,]+ Shards" // Safari reward summary (hover contains the shard breakdown)
                 + @"|Added items|Removed items" // stash adding notification
                 + @"|You donated your" // museum donation
                 + @"|: \d+m$" // chat lowballing discussion
