@@ -17,11 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Coflnet.Leaderboard.Client" Version="0.3.2" />
+    <PackageReference Include="Coflnet.Leaderboard.Client" Version="0.3.3" />
     <PackageReference Include="Coflnet.Sky.Auctions.Client" Version="0.1.2" />
     <PackageReference Include="Coflnet.Sky.Bazaar.Flipper.Client" Version="0.7.0" />
     <PackageReference Include="Coflnet.Sky.Mayor.Client" Version="0.4.1" />
-    <PackageReference Include="Coflnet.Payments.Client" Version="0.23.0" />
+    <PackageReference Include="Coflnet.Payments.Client" Version="0.26.0" />
     <PackageReference Include="Coflnet.Sky.McConnect" Version="0.6.0" />
     <PackageReference Include="Coflnet.Sky.PlayerName.Client" Version="0.2.4" />
     <PackageReference Include="Coflnet.Sky.PlayerState.Client" Version="0.17.0" />
@@ -35,15 +35,15 @@
     <PackageReference Include="Google.Apis.Auth" Version="1.75.0" />
     <PackageReference Include="Coflnet.Sky.EventBroker.Client" Version="0.5.5" />
     <PackageReference Include="Coflnet.Sky.Api.Client" Version="0.7.8" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.21.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.10" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
 
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="AwesomeAssertions" Version="9.5.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="6.2.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
   </ItemGroup>
 
 
