@@ -93,7 +93,13 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<IReferralApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
-                return new ReferralApi(config["REFERRAL_BASE_URL"]);
+                var clientConfig = new Coflnet.Sky.Referral.Client.Client.Configuration
+                {
+                    BasePath = config["REFERRAL_BASE_URL"]
+                };
+                clientConfig.DefaultHeaders["X-Referral-Mutation-Token"] =
+                    config["REFERRAL_MUTATION_TOKEN"];
+                return new ReferralApi(clientConfig);
             });
             services.AddSingleton<ISniperApi>(context =>
             {
@@ -158,14 +164,15 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new MayorApiApi(config["MAYOR_BASE_URL"]);
             });
-            Coflnet.Leaderboard.Client.Extensions.IServiceCollectionExtensions.AddApi(
-                services,
-                options => options
-                    .AddTokens(new Coflnet.Leaderboard.Client.Client.ApiKeyToken(
-                        "",
-                        Coflnet.Leaderboard.Client.Client.ClientUtils.ApiKeyHeader.Authorization))
-                    .AddApiHttpClients((context, client) =>
-                        client.BaseAddress = new Uri(context.GetRequiredService<IConfiguration>()["LEADERBOARD_BASE_URL"])));
+            services.AddSingleton<Coflnet.Leaderboard.Client.Api.IScoresApi>(context =>
+            {
+                var config = new Coflnet.Leaderboard.Client.Client.Configuration
+                {
+                    BasePath = context.GetRequiredService<IConfiguration>()["LEADERBOARD_BASE_URL"]
+                };
+                config.DefaultHeaders["Authorization"] = "Bearer ";
+                return new Coflnet.Leaderboard.Client.Api.ScoresApi(config);
+            });
             services.AddSingleton<ILeaderboardService, LeaderboardService>();
             services.AddSingleton<ISettingsApi, SettingsApi>(context =>
             {
