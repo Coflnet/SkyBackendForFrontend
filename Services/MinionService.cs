@@ -41,8 +41,11 @@ public class MinionService
                 }
             }
             var costForTopTier = minion.Upgrade.Sum(x => x.Sum(y => y?.Tag != null && itemPrices.TryGetValue(y.Tag, out var price) ? price * y.Quanity : 0));
-            profitPerDay = profitPerAction * 24 * 3600 / minion.TierDelay.Last();
-            nbcSellPerDay = npcProfitPerAction * 24 * 3600 / minion.TierDelay.Last();
+            // A minion only yields on every second action, so the harvest interval is twice the listed
+            // "Time Between Actions". Dividing by the raw interval reports exactly double the real rate.
+            var secondsPerHarvest = minion.TierDelay.Last() * MinionCalculator.ActionsPerHarvest;
+            profitPerDay = profitPerAction * MinionCalculator.SecondsPerDay / secondsPerHarvest;
+            nbcSellPerDay = npcProfitPerAction * MinionCalculator.SecondsPerDay / secondsPerHarvest;
 
             effects.Add(new MinionEffect(minion.Name, profitPerDay, costForTopTier, nbcSellPerDay, minion));
         }
