@@ -28,6 +28,7 @@ namespace Coflnet.Sky.Commands.Shared
         private ConcurrentDictionary<long, FlipConWrapper> SlowSubs = new ConcurrentDictionary<long, FlipConWrapper>();
         private ConcurrentDictionary<long, FlipConWrapper> StarterSubs = new ConcurrentDictionary<long, FlipConWrapper>();
         private ConcurrentDictionary<long, FlipConWrapper> SuperSubs = new ConcurrentDictionary<long, FlipConWrapper>();
+        private readonly object subscriptionLock = new object();
         public ConcurrentQueue<FlipInstance> Flipps = new ConcurrentQueue<FlipInstance>();
         private ConcurrentQueue<FlipInstance> SlowFlips = new ConcurrentQueue<FlipInstance>();
         private ConcurrentQueue<LowPricedAuction> StarterFlips = new();
@@ -74,7 +75,6 @@ namespace Coflnet.Sky.Commands.Shared
         public void AddConnectionPlus(IFlipConnection connection, bool sendHistory = true)
         {
             SubToTier(connection, sendHistory, SuperSubs);
-            Subs.TryRemove(connection.Id, out _);
         }
 
         public void AddConnection(IFlipConnection connection, bool sendHistory = true)
@@ -85,29 +85,24 @@ namespace Coflnet.Sky.Commands.Shared
         private void SubToTier(IFlipConnection connection, bool sendHistory, ConcurrentDictionary<long, FlipConWrapper> targetType)
         {
             var con = new FlipConWrapper(connection);
-            targetType.AddOrUpdate(con.Connection.Id, cid => con, (cid, oldMId) => { oldMId.Stop(); return con; });
-
-            RemoveNonConnection(connection);
+            ReplaceConnection(con, targetType);
             var toSendFlips = Flipps.Reverse().Take(250);
             if (sendHistory)
                 SendFlipHistory(connection, toSendFlips, 100);
-            con.StartWorkers();
         }
 
         public void AddStarterConnection(IFlipConnection connection, bool sendHistory = true)
         {
-            RemoveNonConnection(connection);
             var con = new FlipConWrapper(connection);
-            StarterSubs.AddOrUpdate(connection.Id, cid => con, (cid, oldMId) => con);
+            ReplaceConnection(con, StarterSubs);
             if (sendHistory)
                 SendFlipHistory(connection, LoadBurst, 0);
-            con.StartWorkers();
         }
 
         public void AddNonConnection(IFlipConnection connection, bool sendHistory = true)
         {
             var con = new FlipConWrapper(connection);
-            SlowSubs.AddOrUpdate(connection.Id, cid => con, (cid, oldMId) => con);
+            ReplaceConnection(con, SlowSubs);
             if (!sendHistory)
                 return;
             SendFlipHistory(connection, LoadBurst, 0);
@@ -116,21 +111,85 @@ namespace Coflnet.Sky.Commands.Shared
             UpdateFilterSumaries();
         }
 
-        private void RemoveNonConnection(IFlipConnection con)
+        public void RemoveConnection(IFlipConnection con)
         {
-            Unsubscribe(SlowSubs, con.Id);
+            lock (subscriptionLock)
+            {
+                Unsubscribe(Subs, con);
+                Unsubscribe(SuperSubs, con);
+                Unsubscribe(StarterSubs, con);
+                Unsubscribe(SlowSubs, con);
+            }
             UpdateFilterSumaries();
             ClearSoldBuffer();
         }
 
-        public void RemoveConnection(IFlipConnection con)
+        private void ReplaceConnection(FlipConWrapper connection, ConcurrentDictionary<long, FlipConWrapper> targetType)
         {
-            Unsubscribe(Subs, con);
-            Unsubscribe(SuperSubs, con);
-            Unsubscribe(StarterSubs, con);
-            Unsubscribe(SlowSubs, con);
+            lock (subscriptionLock)
+            {
+                Unsubscribe(Subs, connection.Connection.Id);
+                Unsubscribe(SuperSubs, connection.Connection.Id);
+                Unsubscribe(StarterSubs, connection.Connection.Id);
+                Unsubscribe(SlowSubs, connection.Connection.Id);
+                targetType[connection.Connection.Id] = connection;
+                if (!ReferenceEquals(targetType, SlowSubs))
+                    connection.StartWorkers();
+                connection.StartTierRefresh(UpdateConnectionTier);
+            }
+        }
+
+        private Task UpdateConnectionTier(FlipConWrapper connection, AccountTier tier)
+        {
+            lock (subscriptionLock)
+            {
+                if (!OwnsConnection(connection))
+                    return Task.CompletedTask;
+
+                var wasSlow = OwnsConnection(SlowSubs, connection);
+                var targetType = tier switch
+                {
+                    AccountTier.SUPER_PREMIUM => SuperSubs,
+                    AccountTier.PREMIUM_PLUS => SuperSubs,
+                    AccountTier.PREMIUM => Subs,
+                    AccountTier.STARTER_PREMIUM => StarterSubs,
+                    _ => SlowSubs
+                };
+                if (targetType.TryGetValue(connection.Connection.Id, out var current)
+                    && ReferenceEquals(current, connection))
+                    return Task.CompletedTask;
+
+                RemoveWrapper(Subs, connection);
+                RemoveWrapper(SuperSubs, connection);
+                RemoveWrapper(StarterSubs, connection);
+                RemoveWrapper(SlowSubs, connection);
+                targetType[connection.Connection.Id] = connection;
+                if (ReferenceEquals(targetType, SlowSubs))
+                    connection.StopWorkers();
+                else if (wasSlow)
+                    connection.StartWorkers();
+            }
             UpdateFilterSumaries();
-            ClearSoldBuffer();
+            return Task.CompletedTask;
+        }
+
+        private bool OwnsConnection(FlipConWrapper connection)
+        {
+            return OwnsConnection(Subs, connection)
+                || OwnsConnection(SuperSubs, connection)
+                || OwnsConnection(StarterSubs, connection)
+                || OwnsConnection(SlowSubs, connection);
+        }
+
+        private static bool OwnsConnection(ConcurrentDictionary<long, FlipConWrapper> subscribers, FlipConWrapper connection)
+        {
+            return subscribers.TryGetValue(connection.Connection.Id, out var current)
+                && ReferenceEquals(current, connection);
+        }
+
+        private static void RemoveWrapper(ConcurrentDictionary<long, FlipConWrapper> subscribers, FlipConWrapper connection)
+        {
+            subscribers.TryRemove(new KeyValuePair<long, FlipConWrapper>(connection.Connection.Id, connection));
         }
 
 
