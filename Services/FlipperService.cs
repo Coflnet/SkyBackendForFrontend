@@ -125,10 +125,12 @@ namespace Coflnet.Sky.Commands.Shared
 
         public void RemoveConnection(IFlipConnection con)
         {
-            Unsubscribe(Subs, con.Id);
-            Unsubscribe(SuperSubs, con.Id);
-            Unsubscribe(StarterSubs, con.Id);
-            RemoveNonConnection(con);
+            Unsubscribe(Subs, con);
+            Unsubscribe(SuperSubs, con);
+            Unsubscribe(StarterSubs, con);
+            Unsubscribe(SlowSubs, con);
+            UpdateFilterSumaries();
+            ClearSoldBuffer();
         }
 
 
@@ -427,6 +429,16 @@ namespace Coflnet.Sky.Commands.Shared
         private static void Unsubscribe(ConcurrentDictionary<long, FlipConWrapper> subscribers, long item)
         {
             if (subscribers.TryRemove(item, out FlipConWrapper value))
+                value.Stop();
+        }
+
+        private static void Unsubscribe(ConcurrentDictionary<long, FlipConWrapper> subscribers, IFlipConnection connection)
+        {
+            if (!subscribers.TryGetValue(connection.Id, out var value)
+                || !ReferenceEquals(value.Connection, connection))
+                return;
+
+            if (subscribers.TryRemove(new KeyValuePair<long, FlipConWrapper>(connection.Id, value)))
                 value.Stop();
         }
 
