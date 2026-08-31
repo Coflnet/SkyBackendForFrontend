@@ -14,6 +14,9 @@ public class OwnedConfigs
         public string OwnerId { get; set; }
         public string OwnerName { get; set; }
         public int PricePaid { get; set; }
+        public long PurchaseTransactionId { get; set; }
+        public Guid? RewardPendingId { get; set; }
+        public long CreatorFeeEurCents { get; set; }
         public DateTime BoughtAt { get; set; } = DateTime.UtcNow;
     }
 }
