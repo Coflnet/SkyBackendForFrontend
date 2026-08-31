@@ -15,9 +15,6 @@ public class CurrentMayorDetailedFlipFilter : DetailedFlipFilter
             "Aatrox", "Cole", "Diana", "Diaz", "Foxy", "Finnegan", "Marina", "Paul", "Derpy", "Jerry", "Scorpius", "Dante", "Barry", "Aura"
             };
 
-
-    protected (Func<string> val, DateTime lastUpdate) lastUpdate;
-
     public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {
         // normalize the name
@@ -30,14 +27,7 @@ public class CurrentMayorDetailedFlipFilter : DetailedFlipFilter
 
     public Func<string> GetCurrentMayor()
     {
-        if (DateTime.Now - lastUpdate.lastUpdate > TimeSpan.FromMinutes(2))
-        {
-            var service = DiHandler.GetService<FilterStateService>();
-            service.UpdateState().Wait();
-            // update as too old
-            lastUpdate = (TargetMayor(service), DateTime.Now);
-        }
-        var current = lastUpdate.val;
+        var current = TargetMayor(DiHandler.GetService<FilterStateService>());
         if (current == null)
             throw new CoflnetException("no_mayor", "Current mayor could not be retrieved");
         return current;

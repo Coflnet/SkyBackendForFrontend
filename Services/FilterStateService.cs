@@ -9,14 +9,20 @@ using Coflnet.Sky.Core;
 using Coflnet.Sky.Items.Client.Model;
 using Coflnet.Sky.Mayor.Client.Model;
 using dev;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using RestSharp;
 using Cassandra;
 
 namespace Coflnet.Sky.Commands.Shared;
-public class FilterStateService
+public class FilterStateService : BackgroundService
 {
+    private static readonly DateTimeOffset MayorChangeAnchor = new(2019, 6, 12, 23, 15, 0, TimeSpan.Zero);
+    private static readonly TimeSpan MayorCycle = TimeSpan.FromHours(124);
+    private static readonly TimeSpan MayorUpdateDelay = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan MayorUpdateRetryDelay = TimeSpan.FromMinutes(5);
+
     public class FilterState
     {
 
@@ -57,17 +63,7 @@ public class FilterStateService
         }
         else
             return;
-        try
-        {
-            State.PreviousMayor = mayorApi.MayorLastGet().ToLower();
-            State.NextMayor = (await mayorApi.MayorNextGetAsync())?.Name?.ToLower();
-            UpdateCurrentPerks();
-            logger.LogInformation("Current mayor is {current}, perks: {perks}", State.CurrentMayor, string.Join(", ", State.CurrentPerks));
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Could not load mayor");
-        }
+        await UpdateMayorState();
         foreach (var item in State.itemCategories.Keys)
         {
             try
@@ -100,6 +96,42 @@ public class FilterStateService
         }
         await LoadKnownYoutubersAsync();
         logger.LogInformation("Loaded {0} item tags", State.ExistingTags.Count);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(DelayUntilNextMayorUpdate(DateTimeOffset.UtcNow), stoppingToken);
+            while (!await UpdateMayorState() && !stoppingToken.IsCancellationRequested)
+                await Task.Delay(MayorUpdateRetryDelay, stoppingToken);
+        }
+    }
+
+    internal static TimeSpan DelayUntilNextMayorUpdate(DateTimeOffset now)
+    {
+        var firstUpdate = MayorChangeAnchor + MayorUpdateDelay;
+        if (now < firstUpdate)
+            return firstUpdate - now;
+        var completedCycles = (now - firstUpdate).Ticks / MayorCycle.Ticks;
+        return firstUpdate.AddTicks((completedCycles + 1) * MayorCycle.Ticks) - now;
+    }
+
+    internal async Task<bool> UpdateMayorState()
+    {
+        try
+        {
+            State.PreviousMayor = mayorApi.MayorLastGet().ToLower();
+            State.NextMayor = (await mayorApi.MayorNextGetAsync())?.Name?.ToLower();
+            UpdateCurrentPerks();
+            logger.LogInformation("Current mayor is {current}, perks: {perks}", State.CurrentMayor, string.Join(", ", State.CurrentPerks));
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not load mayor");
+            return false;
+        }
     }
 
     private async Task LoadKnownYoutubersAsync()
