@@ -33,6 +33,26 @@ public class SettingsDiffer
         return differences;
     }
 
+    /// <summary>
+    /// Creates an exportable config containing the user's additions and overrides,
+    /// without including unchanged settings from the current Expert Config.
+    /// </summary>
+    /// <remarks>
+    /// The combined config must be based on the supplied current Expert Config.
+    /// Deletions are intentionally omitted because a standalone <see cref="FlipSettings"/>
+    /// cannot represent removal tombstones.
+    /// </remarks>
+    public static FlipSettings GetUserDifferenceConfig(FlipSettings combinedUserConfig, FlipSettings currentExpertConfig)
+    {
+        var difference = GetDifferences(currentExpertConfig, combinedUserConfig);
+        var userConfig = new FlipSettings
+        {
+            BlackList = [],
+            WhiteList = []
+        };
+        return new SettingsDiffer().ApplyDiff(userConfig, difference);
+    }
+
     public FlipSettings ApplyDiff(FlipSettings settings, SettingsDiff settingsDiff, bool skipNonfilter = false)
     {
         var updater = new SettingsUpdater();
@@ -165,7 +185,9 @@ public class SettingsDiffer
             var newValue = property.GetValue(newSettings);
             var dataMembername = property.GetCustomAttribute<DataMemberAttribute>()?.Name;
             // if the values are not equal
-            if (!Equals(oldValue, newValue) && dataMembername != null)
+            if (!Equals(oldValue, newValue) && dataMembername != null
+                && !dataMembername.Equals(
+                    "blockExport", System.StringComparison.OrdinalIgnoreCase))
             {
                 // add a set command to the differences
                 differences.SetCommands.Add($"{prefix + dataMembername} {newValue}");
@@ -190,4 +212,3 @@ public class SettingsDiffer
         }
     }
 }
-

@@ -6,6 +6,7 @@ namespace Coflnet.Sky.Commands.Shared;
 public class OwnedConfigs
 {
     public List<OwnedConfig> Configs { get; set; } = new();
+    public HashSet<long> RevertedPurchaseIds { get; set; } = new();
     public class OwnedConfig
     {
         public string Name { get; set; }
@@ -18,5 +19,8 @@ public class OwnedConfigs
         public Guid? RewardPendingId { get; set; }
         public long CreatorFeeEurCents { get; set; }
         public DateTime BoughtAt { get; set; } = DateTime.UtcNow;
+        public DateTime? AccessUntilUtc { get; set; }
+        public bool CreatorGift { get; set; }
+        public DateTime? RevokedAtUtc { get; set; }
     }
 }

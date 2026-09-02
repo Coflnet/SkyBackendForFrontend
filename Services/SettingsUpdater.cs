@@ -82,9 +82,8 @@ namespace Coflnet.Sky.Commands.Shared
         public async Task<object> Update(IFlipConnection con, string key, string value)
         {
             if (key.Equals("blockexport", StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine($"Blockexport {value} on {con.UserId}");
-            }
+                throw new CoflnetException("protected_setting",
+                    "BlockExport is managed by the Expert Config service.");
             if (key == "blacklist")
                 con.Settings.BlackList = GetOrderedFilters(value);
             else if (key == "whitelist")
@@ -125,6 +124,9 @@ namespace Coflnet.Sky.Commands.Shared
 
         public object Update(FlipSettings con, string key, string value)
         {
+            if (key.Equals("blockexport", StringComparison.OrdinalIgnoreCase))
+                throw new CoflnetException("protected_setting",
+                    "BlockExport is managed by the Expert Config service.");
             if (!options.TryGetValue(key, out SettingDoc doc))
             {
                 var closest = options.Keys.OrderBy(k => Fastenshtein.Levenshtein.Distance(k.ToLower(), key.ToLower())).First();

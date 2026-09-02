@@ -10,7 +10,10 @@ public class ConfigContainer
     public int Version { get; set; }
     public string ChangeNotes { get; set; }
     public string OwnerId { get; set; }
+    public string OwnerMinecraftUuid { get; set; }
     public int Price { get; set; }
+    public bool Delisted { get; set; }
+    public bool ModeratorDelisted { get; set; }
     public Dictionary<int, SettingsDiffer.SettingsDiff> Diffs { get; set; } = new();
     public DateTime LastUpdated { get; set; }
 }

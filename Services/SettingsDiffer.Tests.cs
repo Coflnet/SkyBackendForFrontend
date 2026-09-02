@@ -25,6 +25,70 @@ public class SettingsDifferTests
     }
 
     [Test]
+    public void GetUserDifferenceConfigExportsOnlyUserAdditionsAndOverrides()
+    {
+        var expertBlacklist = new ListEntry
+        {
+            ItemTag = "EXPERT_ITEM",
+            filter = new Dictionary<string, string> { { "MinProfit", "1000000" } }
+        };
+        var expertWhitelist = new ListEntry { ItemTag = "EXPERT_WHITELIST_ITEM" };
+        var userBlacklist = new ListEntry { ItemTag = "USER_ITEM" };
+        var userWhitelist = new ListEntry { ItemTag = "USER_WHITELIST_ITEM" };
+        var currentExpertConfig = new FlipSettings
+        {
+            MinProfit = 1_000_000,
+            MinProfitPercent = 10,
+            MinVolume = 2,
+            MaxCost = 100_000_000,
+            OnlyBin = true,
+            BlackList = [expertBlacklist],
+            WhiteList = [expertWhitelist]
+        };
+        var combinedUserConfig = new FlipSettings
+        {
+            BlockExport = true,
+            MinProfit = 2_000_000,
+            MinProfitPercent = 15,
+            MinVolume = 4,
+            MaxCost = 200_000_000,
+            OnlyBin = true,
+            BlackList = [expertBlacklist, userBlacklist],
+            WhiteList = [expertWhitelist, userWhitelist]
+        };
+
+        var result = SettingsDiffer.GetUserDifferenceConfig(combinedUserConfig, currentExpertConfig);
+
+        result.MinProfit.Should().Be(2_000_000);
+        result.MinProfitPercent.Should().Be(15);
+        result.MinVolume.Should().Be(4);
+        result.MaxCost.Should().Be(200_000_000);
+        result.OnlyBin.Should().BeFalse();
+        result.BlockExport.Should().BeFalse();
+        result.BlackList.Should().ContainSingle().Which.Should().Be(userBlacklist);
+        result.WhiteList.Should().ContainSingle().Which.Should().Be(userWhitelist);
+    }
+
+    [Test]
+    public void GetUserDifferenceConfigOmitsRemovedExpertEntries()
+    {
+        var currentExpertConfig = new FlipSettings
+        {
+            BlackList = [new ListEntry { ItemTag = "EXPERT_ITEM" }],
+            WhiteList = []
+        };
+        var combinedUserConfig = new FlipSettings
+        {
+            BlackList = [],
+            WhiteList = []
+        };
+
+        var result = SettingsDiffer.GetUserDifferenceConfig(combinedUserConfig, currentExpertConfig);
+
+        result.BlackList.Should().BeEmpty();
+    }
+
+    [Test]
     public void AddBlacklist()
     {
         var oldSettings = new FlipSettings() { BlackList = new() };
@@ -280,4 +344,3 @@ public class SettingsDifferTests
         });
     }
 }
-
