@@ -9,6 +9,27 @@ namespace Coflnet.Sky.Commands.Shared;
 public class DiHandlerTests
 {
     [Test]
+    public void FilterStateIsSharedBetweenBuiltProviders()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                ["ITEMS_BASE_URL"] = "http://items.test",
+                ["MAYOR_BASE_URL"] = "http://mayor.test"
+            })
+            .Build());
+        services.AddLogging();
+        services.AddCoflService();
+        using var earlyProvider = services.BuildServiceProvider();
+        using var hostProvider = services.BuildServiceProvider();
+
+        Assert.That(
+            earlyProvider.GetRequiredService<FilterStateService>().State,
+            Is.SameAs(hostProvider.GetRequiredService<FilterStateService>().State));
+    }
+
+    [Test]
     public void ReferralClientReceivesConfiguredMutationToken()
     {
         const string token = "referral-mutation-token-32-characters-minimum";

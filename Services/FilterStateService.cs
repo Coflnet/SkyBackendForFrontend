@@ -40,7 +40,7 @@ public class FilterStateService : BackgroundService
 
     private SemaphoreSlim updateLock = new SemaphoreSlim(1, 1);
 
-    public FilterState State { get; set; } = new FilterState();
+    public FilterState State { get; }
 
     private DateTime lastYoutuberLoad = DateTime.MinValue;
 
@@ -48,11 +48,12 @@ public class FilterStateService : BackgroundService
     private Items.Client.Api.IItemsApi itemsApi;
     private ILogger<FilterStateService> logger;
 
-    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApiApi mayorApi, Items.Client.Api.IItemsApi itemsApi)
+    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApiApi mayorApi, Items.Client.Api.IItemsApi itemsApi, FilterState state = null)
     {
         this.logger = logger;
         this.mayorApi = mayorApi;
         this.itemsApi = itemsApi;
+        State = state ?? new FilterState();
     }
 
     public async Task UpdateState()
@@ -100,6 +101,9 @@ public class FilterStateService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        while (!stoppingToken.IsCancellationRequested && !await UpdateMayorState())
+            await Task.Delay(MayorUpdateRetryDelay, stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(DelayUntilNextMayorUpdate(DateTimeOffset.UtcNow), stoppingToken);
@@ -123,7 +127,8 @@ public class FilterStateService : BackgroundService
         {
             State.PreviousMayor = mayorApi.MayorLastGet().ToLower();
             State.NextMayor = (await mayorApi.MayorNextGetAsync())?.Name?.ToLower();
-            UpdateCurrentPerks();
+            if (!UpdateCurrentPerks())
+                return false;
             logger.LogInformation("Current mayor is {current}, perks: {perks}", State.CurrentMayor, string.Join(", ", State.CurrentPerks));
             return true;
         }
@@ -168,21 +173,21 @@ public class FilterStateService : BackgroundService
         }
     }
 
-    private void UpdateCurrentPerks()
+    private bool UpdateCurrentPerks()
     {
         var restsharp = new RestClient("https://api.hypixel.net");
         var mayorResponse = restsharp.Execute(new RestRequest("/v2/resources/skyblock/election"));
         var mayors = JsonConvert.DeserializeObject<MayorResponse>(mayorResponse.Content);
         if (!mayors.success)
         {
-            Console.WriteLine("Could not load mayor perks");
-            return;
+            logger.LogWarning("Could not load current mayor");
+            return false;
         }
         var mayor = mayors.mayor?.perks?.Select(p => p.name).ToList();
         if (mayor == null || mayor.Count == 0)
         {
             logger.LogWarning("Mayor perks came back empty, keeping previous {count} perks", State.CurrentPerks.Count);
-            return;
+            return false;
         }
         var minister = mayors.mayor?.minister?.perk?.name;
         var newPerks = new HashSet<string>(mayor);
@@ -194,7 +199,7 @@ public class FilterStateService : BackgroundService
         if (currentElection == null)
         {
             State.NextPerks = [];
-            return;
+            return true;
         }
         if (currentElection.candidates.All(c => c.votes == 0))
         {
@@ -208,7 +213,7 @@ public class FilterStateService : BackgroundService
                     State.NextPerks.Add(perk.name);
                 }
             }
-            return;
+            return true;
         }
         var probableWinner = currentElection.candidates
             .OrderByDescending(c => c.votes)
@@ -224,6 +229,7 @@ public class FilterStateService : BackgroundService
             .FirstOrDefault().perks.Where(p => p.minister).Select(p => p.name).FirstOrDefault();
         if (runnerUp != null)
             State.NextPerks.Add(runnerUp);
+        return true;
     }
 
     public async Task GetItemCategory(ItemCategory category)

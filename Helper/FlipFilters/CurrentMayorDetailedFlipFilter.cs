@@ -27,15 +27,15 @@ public class CurrentMayorDetailedFlipFilter : DetailedFlipFilter
 
     public Func<string> GetCurrentMayor()
     {
-        var current = TargetMayor(DiHandler.GetService<FilterStateService>());
+        var current = TargetMayor(DiHandler.GetService<FilterStateService>().State);
         if (current == null)
             throw new CoflnetException("no_mayor", "Current mayor could not be retrieved");
         return current;
     }
 
-    protected virtual Func<string> TargetMayor(FilterStateService service)
+    protected virtual Func<string> TargetMayor(FilterStateService.FilterState state)
     {
-        return ()=> service.State.CurrentMayor;
+        return () => state.CurrentMayor;
     }
 
     public Filter.FilterType FilterType => Filter.FilterType.Equal;

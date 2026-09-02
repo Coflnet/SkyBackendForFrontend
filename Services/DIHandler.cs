@@ -234,6 +234,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<ItemDetails>();
             services.AddHostedService<FilterLoader>();
             services.AddTransient<HypixelContext>(s => new HypixelContext());
+            services.AddSingleton(new FilterStateService.FilterState());
             services.AddSingleton<FilterStateService>();
             services.AddSingleton<HypixelItemService>();
             services.AddSingleton<IHypixelItemStore>(di => di.GetRequiredService<HypixelItemService>());
