@@ -67,6 +67,8 @@ public class SettingsDifferTests
         result.BlockExport.Should().BeFalse();
         result.BlackList.Should().ContainSingle().Which.Should().Be(userBlacklist);
         result.WhiteList.Should().ContainSingle().Which.Should().Be(userWhitelist);
+        result.ModSettings.Should().NotBeNull();
+        result.Visibility.Should().NotBeNull();
     }
 
     [Test]

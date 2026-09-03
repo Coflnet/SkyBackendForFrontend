@@ -48,7 +48,9 @@ public class SettingsDiffer
         var userConfig = new FlipSettings
         {
             BlackList = [],
-            WhiteList = []
+            WhiteList = [],
+            ModSettings = new(),
+            Visibility = new()
         };
         return new SettingsDiffer().ApplyDiff(userConfig, difference);
     }
