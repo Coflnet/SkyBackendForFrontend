@@ -21,6 +21,7 @@ using Coflnet.Sky.EventBroker.Client.Api;
 using Coflnet.Sky.Bazaar.Flipper.Client.Api;
 using Coflnet.Sky.Core.Services;
 using Microsoft.Extensions.Logging;
+using System.Net.Http;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -198,7 +199,17 @@ namespace Coflnet.Sky.Commands.Shared
             AddPlayerStateSingleton<PlayerState.Client.Api.IBazaarProfitApi>(url => new PlayerState.Client.Api.BazaarProfitApi(url));
 
             services.AddSingleton<PremiumService>();
-            services.AddSingleton<ISniperClient, SniperClient>();
+            services.AddHttpClient<ISniperClient, SniperClient>((provider, client) =>
+            {
+                var config = provider.GetRequiredService<IConfiguration>();
+                client.BaseAddress = new Uri(config["SNIPER_BASE_URL"]);
+                client.Timeout = TimeSpan.FromMilliseconds(Math.Max(1, config.GetValue<int?>("SNIPER_TIMEOUT_MS") ?? 2000));
+            }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+                PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
+                MaxConnectionsPerServer = 256
+            });
             services.AddSingleton<EventBrokerClient>();
             services.AddSingleton<MinionService>();
             services.AddSingleton<ComposterService>();
