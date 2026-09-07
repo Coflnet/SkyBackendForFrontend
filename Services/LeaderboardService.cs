@@ -106,7 +106,7 @@ public class LeaderboardService : ILeaderboardService
 
     private async Task<DateTime> Expiry(string userId)
     {
-        return await this.userApi.UserUserIdOwnsLongestPostAsync(userId, ["premium_plus"]);
+        return await this.userApi.UserUserIdOwnsLongestPostAsync(userId, requestBody: ["premium_plus"]);
     }
 
     private async Task<HiddenAccountsSetting> GetExcluded()

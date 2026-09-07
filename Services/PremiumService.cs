@@ -61,7 +61,7 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 if (GoogleUser.EveryoneIsPremium)
                     return (AccountTier.PREMIUM_PLUS, DateTime.UtcNow + TimeSpan.FromDays(30));
-                var owns = await userApi.UserUserIdOwnsUntilPostAsync(userId, new() { premiumPlanName, premiumPlusSlug, starterPremiumSlug, preApiSlug, "test-premium" });
+                var owns = await userApi.UserUserIdOwnsUntilPostAsync(userId, requestBody: new() { premiumPlanName, premiumPlusSlug, starterPremiumSlug, preApiSlug, "test-premium" });
                 if (owns.TryGetValue(preApiSlug, out DateTime end) && end > DateTime.UtcNow)
                     return (AccountTier.SUPER_PREMIUM, end);
                 if (owns.TryGetValue(premiumPlusSlug, out end) && end > DateTime.UtcNow)
@@ -83,7 +83,7 @@ namespace Coflnet.Sky.Commands.Shared
         {
             if (GoogleUser.EveryoneIsPremium)
                 return DateTime.UtcNow + TimeSpan.FromDays(30);
-            var until = await userApi.UserUserIdOwnsLongestPostAsync(userId, new() { premiumPlanName, testpremiumPlanName });
+            var until = await userApi.UserUserIdOwnsLongestPostAsync(userId, requestBody: new() { premiumPlanName, testpremiumPlanName });
             return until;
         }
         public async Task<bool> HasPremium(int userId)

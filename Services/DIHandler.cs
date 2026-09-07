@@ -75,15 +75,17 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<FlipTrackingService>();
             services.AddSingleton<IFlipTrackingService>(di => di.GetRequiredService<FlipTrackingService>());
             services.AddPaymentSingleton<ProductsApi>(url => new ProductsApi(url));
-            services.AddPaymentSingleton<UserApi>(url => new UserApi(url));
+            services.AddPaymentSingleton<UserApi>(url => new UserApi(new Coflnet.Payments.Client.Client.Configuration { BasePath = url, Timeout = TimeSpan.FromSeconds(10) }));
             services.AddPaymentSingleton<TopUpApi>(url => new TopUpApi(url));
             services.AddPaymentSingleton<IProductsApi>(url => new ProductsApi(url));
-            services.AddPaymentSingleton<IUserApi>(url => new UserApi(url));
+            services.AddPaymentSingleton<IUserApi>(url => new UserApi(new Coflnet.Payments.Client.Client.Configuration { BasePath = url, Timeout = TimeSpan.FromSeconds(10) }));
             services.AddPaymentSingleton<ITopUpApi>(url => new TopUpApi(url));
             services.AddPaymentSingleton<IGooglePayApi>(url => new GooglePayApi(url));
             services.AddPaymentSingleton<ICreatorCodeApi>(url => new CreatorCodeApi(url));
             services.AddPaymentSingleton<ITransactionApi>(url => new TransactionApi(url));
             services.AddPaymentSingleton<ILicenseApi>(url => new LicenseApi(url));
+            services.AddPaymentSingleton<ITierSlotsApi>(url => new TierSlotsApi(
+                new Coflnet.Payments.Client.Client.Configuration { BasePath = url, Timeout = TimeSpan.FromSeconds(10) }));
             services.AddPaymentSingleton<ISubscriptionApi>(url => new SubscriptionApi(url));
             services.AddSingleton<TokenService>();
             services.AddSingleton<IItemsApi>(di=>
