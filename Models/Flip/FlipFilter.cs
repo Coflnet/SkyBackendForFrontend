@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using Coflnet.Sky.Filter;
 using Coflnet.Sky.Core;
 using System.Diagnostics;
+using Coflnet.Sky.Core.Services;
 
 namespace Coflnet.Sky.Commands.Shared
 {
@@ -13,7 +14,6 @@ namespace Coflnet.Sky.Commands.Shared
     {
         public static FilterEngine FilterEngine => DiHandler.GetService<FilterEngine>();
 
-        private Func<SaveAuction, bool> Filters;
         private Func<FlipInstance, bool> FlipFilters = null;
         Expression<Func<FlipInstance, bool>> expression = null;
         public bool IsCacheAble { get; } = true;
@@ -129,6 +129,14 @@ namespace Coflnet.Sky.Commands.Shared
                 }
             }
             var filterExpression = FilterEngine.GetMatchExpression(filters);
+            if (filters.Any(f => (f.Key.Equals("Color", StringComparison.OrdinalIgnoreCase)
+                    || f.Key.Equals("HexColorList", StringComparison.OrdinalIgnoreCase))
+                && (f.Value.StartsWith("pattern:", StringComparison.OrdinalIgnoreCase) || f.Value.Contains('_') || f.Value.Contains('-'))))
+            {
+                var itemService = DiHandler.GetService<HypixelItemService>();
+                Expression<Func<SaveAuction, bool>> nonDefault = a => HasNonDefaultColor(a, itemService);
+                filterExpression = nonDefault.And(filterExpression);
+            }
             Expression<Func<FlipInstance, SaveAuction>> flipToAuction = f => f.Auction;
             var invoke = Expression.Invoke(filterExpression, flipToAuction.Body);
             Expression<Func<FlipInstance, bool>> auctionMatcher = Expression.Lambda<Func<FlipInstance, bool>>(invoke, flipToAuction.Parameters[0]);
@@ -139,9 +147,22 @@ namespace Coflnet.Sky.Commands.Shared
                 expression = auctionMatcher;
             else
                 expression = auctionMatcher.And(expression);
-            Filters = FilterEngine.GetMatcher(filters);
             if (expression != null)
                 FlipFilters = expression.Compile();
+        }
+
+        private static bool HasNonDefaultColor(SaveAuction auction, HypixelItemService itemService)
+        {
+            if (auction.FlatenedNBT == null || !auction.FlatenedNBT.TryGetValue("color", out var color))
+                return false;
+            var (original, _) = itemService.GetDefaultColorAndCategory(auction.Tag);
+            if (original == null || original.Length != color.Length)
+                return true;
+            // Item metadata uses commas, flattened NBT uses colons. Compare without allocating.
+            for (var i = 0; i < color.Length; i++)
+                if (color[i] != (original[i] == ',' ? ':' : original[i]))
+                    return true;
+            return false;
         }
 
         public static void CopyRelevantToNew(FlipSettings newSettings, FlipSettings old)
@@ -174,7 +195,7 @@ namespace Coflnet.Sky.Commands.Shared
 
         public bool IsMatch(FlipInstance flip)
         {
-            return Filters == null || Filters(flip.Auction) && (FlipFilters == null || FlipFilters(flip));
+            return FlipFilters == null || FlipFilters(flip);
         }
 
         public Expression<Func<FlipInstance, bool>> GetExpression()
