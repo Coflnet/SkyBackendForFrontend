@@ -24,6 +24,9 @@ namespace Coflnet.Sky.Commands.Shared
         [DataMember(Name = "soundOnOutbid")]
         [SettingsDoc("Play a sound when a bazaar order is outbid")]
         public bool PlaySoundOnOutbid;
+        [DataMember(Name = "hideBazaarOrderDisplay")]
+        [SettingsDoc("Hide the Bazaar order fill display in HUD slot 2")]
+        public bool HideBazaarOrderDisplay;
         [DataMember(Name = "blockOutbidMsg")]
         [SettingsDoc("Block outbid messages from appearing in chat")]
         public bool BlockOutbidMessages;
