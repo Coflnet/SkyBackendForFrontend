@@ -16,6 +16,7 @@ namespace Coflnet.Sky.Commands.Shared
         private Channel<LowPricedAuction> LowPriced = Channel.CreateBounded<LowPricedAuction>(50);
 
         private CancellationTokenSource cancellationTokenSource = null;
+        private CancellationTokenSource tierRefreshCancellationTokenSource = null;
         private bool stopWrites;
 
         public bool Closed => stopWrites;
@@ -87,6 +88,66 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
+        internal void StartTierRefresh(Func<FlipConWrapper, AccountTier, Task> updateTier)
+        {
+            tierRefreshCancellationTokenSource?.Cancel();
+            tierRefreshCancellationTokenSource = new CancellationTokenSource();
+            var stoppingToken = tierRefreshCancellationTokenSource.Token;
+            _ = Task.Run(() => RunTierRefresh(updateTier, stoppingToken), stoppingToken).ConfigureAwait(false);
+        }
+
+        private async Task RunTierRefresh(
+            Func<FlipConWrapper, AccountTier, Task> updateTier,
+            CancellationToken stoppingToken)
+        {
+            var knownExpiry = Connection.AccountInfo?.ExpiresAt;
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    knownExpiry = await RefreshTier(updateTier, knownExpiry, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception e)
+                {
+                    Connection.Log(e.ToString(), Microsoft.Extensions.Logging.LogLevel.Error);
+                    knownExpiry = null;
+                }
+            }
+        }
+
+        private async Task<DateTime?> RefreshTier(
+            Func<FlipConWrapper, AccountTier, Task> updateTier,
+            DateTime? knownExpiry,
+            CancellationToken stoppingToken)
+        {
+            var now = DateTime.UtcNow;
+            var delay = TimeSpan.FromSeconds(30);
+            if (knownExpiry.HasValue
+                && knownExpiry.Value > now
+                && knownExpiry.Value - now < delay)
+                delay = knownExpiry.Value - now;
+            var refreshAt = now + delay;
+            while (refreshAt > DateTime.UtcNow)
+            {
+                var remaining = refreshAt - DateTime.UtcNow;
+                await Task.Delay(
+                    remaining < TimeSpan.FromMilliseconds(1) ? TimeSpan.FromMilliseconds(1) : remaining,
+                    stoppingToken).ConfigureAwait(false);
+            }
+
+            var tier = await Connection.UserAccountTier().ConfigureAwait(false);
+            await updateTier(this, tier).ConfigureAwait(false);
+            var refreshedExpiry = Connection.AccountInfo?.ExpiresAt;
+            if (refreshedExpiry.HasValue
+                && refreshedExpiry.Value > DateTime.UtcNow)
+                return refreshedExpiry;
+            return null;
+        }
+
         private static void AddCopyOfFlipToBatch(LowPricedAuction flip, List<LowPricedAuction> batch)
         {
             var copy = Copy(flip);
@@ -121,10 +182,19 @@ namespace Coflnet.Sky.Commands.Shared
         public void Stop()
         {
             stopWrites = true;
-            cancellationTokenSource?.Cancel();
+            tierRefreshCancellationTokenSource?.Cancel();
+            StopWorkers();
             if (LowPriced.Writer.TryComplete())
                 while (LowPriced.Reader.Count > 0)
                     LowPriced.Reader.TryRead(out _);
+        }
+
+        internal void StopWorkers()
+        {
+            cancellationTokenSource?.Cancel();
+            while (LowPriced.Reader.TryRead(out _))
+            {
+            }
         }
     }
 }
