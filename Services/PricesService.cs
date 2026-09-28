@@ -382,8 +382,19 @@ namespace Coflnet.Sky.Commands.Shared
         }
 
         /// <summary>
+        /// A single sold-auction data point used as input for <see cref="ComputeAdvancedAnalysis"/>.
+        /// </summary>
+        public readonly record struct AnalysisSample(long PricePerUnit, DateTime Start, DateTime End, bool IsBin, int SellerId);
+
+        /// <summary>
+        /// A single active-listing data point used as input for <see cref="ComputeLiveMarketAnalysis"/>.
+        /// </summary>
+        public readonly record struct LiveListingSample(long StartingBid, long HighestBidAmount, int Count, DateTime Start, bool Bin, int SellerId);
+
+        /// <summary>
         /// Computes advanced analysis data: volume clustering by price and sell speed by price bucket.
-        /// Pushes aggregation to the database via EF where possible.
+        /// Fetches sold auctions in a single query and delegates the actual number crunching to
+        /// <see cref="ComputeAdvancedAnalysis"/> so it stays independently testable.
         /// </summary>
         public async Task<AdvancedAnalysisResult> GetAdvancedAnalysis(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
         {
@@ -399,33 +410,22 @@ namespace Coflnet.Sky.Commands.Shared
 
             var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20)).Token;
 
-            // Step 1: Get price range from DB
-            var priceStats = await baseSelect
-                .GroupBy(a => 1)
-                .Select(g => new
-                {
-                    MinPrice = g.Min(a => a.HighestBidAmount / a.Count),
-                    MaxPrice = g.Max(a => a.HighestBidAmount / a.Count),
-                    TotalCount = g.Count()
-                })
-                .AsNoTracking()
-                .FirstOrDefaultAsync(timeout);
-
-            if (priceStats == null || priceStats.TotalCount == 0)
-                return new AdvancedAnalysisResult();
-
-            // Step 2: Fetch price + time data (limit to 50k for performance)
+            // Single query: fetch price + time data (limit to 50k for performance)
             // Note: Fetch Start/End separately because (End-Start).TotalSeconds can't be translated to SQL
+            // Note: Fetch HighestBidAmount/Count separately (instead of dividing in SQL) so a Count of 0
+            // can't cause a division by zero while materializing the row; min/max price are derived from
+            // these same rows below instead of a separate aggregate query.
             var rawData = await baseSelect
                 .OrderByDescending(a => a.End)
                 .Take(50_000)
                 .Select(a => new
                 {
-                    PricePerUnit = a.HighestBidAmount / a.Count,
-                    Start = a.Start,
-                    End = a.End,
+                    a.HighestBidAmount,
+                    a.Count,
+                    a.Start,
+                    a.End,
                     IsBin = a.Bin,
-                    SellerId = a.SellerId
+                    a.SellerId
                 })
                 .AsNoTracking()
                 .ToListAsync(timeout);
@@ -433,11 +433,36 @@ namespace Coflnet.Sky.Commands.Shared
             if (rawData.Count == 0)
                 return new AdvancedAnalysisResult();
 
-            // Step 3: Bucket in C# (15 buckets for volume, 10 for sell speed)
+            var samples = rawData.Select(d => new AnalysisSample(
+                d.Count != 0 ? d.HighestBidAmount / d.Count : 0,
+                d.Start,
+                d.End,
+                d.IsBin,
+                d.SellerId
+            )).ToList();
+
+            return ComputeAdvancedAnalysis(samples, start, end);
+        }
+
+        /// <summary>
+        /// Pure computation of <see cref="AdvancedAnalysisResult"/> from already fetched sold-auction samples.
+        /// Contains no DB access so it can be unit tested directly.
+        /// </summary>
+        public static AdvancedAnalysisResult ComputeAdvancedAnalysis(IReadOnlyList<AnalysisSample> samples, DateTime start, DateTime end)
+        {
+            if (samples == null || samples.Count == 0)
+                return new AdvancedAnalysisResult();
+
+            // Bucket in C# (15 buckets for volume, 10 for sell speed)
             const int numVolumeBuckets = 15;
             const int numSpeedBuckets = 10;
-            var minPrice = priceStats.MinPrice;
-            var maxPrice = priceStats.MaxPrice;
+            var minPrice = samples[0].PricePerUnit;
+            var maxPrice = samples[0].PricePerUnit;
+            foreach (var s in samples)
+            {
+                if (s.PricePerUnit < minPrice) minPrice = s.PricePerUnit;
+                if (s.PricePerUnit > maxPrice) maxPrice = s.PricePerUnit;
+            }
             var priceRange = maxPrice - minPrice;
 
             if (priceRange <= 0)
@@ -454,8 +479,8 @@ namespace Coflnet.Sky.Commands.Shared
             double totalSellTime = 0;
             double totalPrice = 0;
             int binCount = 0;
-            var allPrices = new List<long>(rawData.Count);
-            var allSellTimes = new List<double>(rawData.Count);
+            var allPrices = new List<long>(samples.Count);
+            var allSellTimes = new List<double>(samples.Count);
 
             // Hourly breakdown (24 hours)
             var hourlyCounts = new int[24];
@@ -465,7 +490,7 @@ namespace Coflnet.Sky.Commands.Shared
             // Seller tracking
             var sellerCounts = new Dictionary<int, int>();
 
-            foreach (var d in rawData)
+            foreach (var d in samples)
             {
                 var sellTimeSeconds = Math.Max(0, (d.End - d.Start).TotalSeconds);
                 sellTimeSeconds = Math.Min(sellTimeSeconds, 7 * 86400); // cap at 7 days
@@ -521,24 +546,24 @@ namespace Coflnet.Sky.Commands.Shared
             }
 
             // Price volatility (standard deviation / coefficient of variation)
-            var avgPriceVal = rawData.Count > 0 ? totalPrice / rawData.Count : 0;
+            var avgPriceVal = samples.Count > 0 ? totalPrice / samples.Count : 0;
             double sumSquaredDiffs = 0;
             foreach (var p in allPrices)
                 sumSquaredDiffs += (p - avgPriceVal) * (p - avgPriceVal);
-            var priceStdDev = rawData.Count > 1 ? Math.Sqrt(sumSquaredDiffs / (rawData.Count - 1)) : 0;
+            var priceStdDev = samples.Count > 1 ? Math.Sqrt(sumSquaredDiffs / (samples.Count - 1)) : 0;
             var priceCV = avgPriceVal > 0 ? priceStdDev / avgPriceVal : 0;
 
             var result = new AdvancedAnalysisResult
             {
-                TotalSales = rawData.Count,
-                AvgSellTimeSeconds = rawData.Count > 0 ? totalSellTime / rawData.Count : 0,
+                TotalSales = samples.Count,
+                AvgSellTimeSeconds = samples.Count > 0 ? totalSellTime / samples.Count : 0,
                 MedianSellTimeSeconds = medianSellTime,
                 AvgPrice = avgPriceVal,
                 MedianPrice = medianPrice,
                 MinPrice = minPrice,
                 MaxPrice = maxPrice,
-                BinPercentage = rawData.Count > 0 ? (double)binCount / rawData.Count * 100 : 0,
-                SalesPerDay = rawData.Count > 0 ? rawData.Count / Math.Max(1, (end - start).TotalDays) : 0,
+                BinPercentage = samples.Count > 0 ? (double)binCount / samples.Count * 100 : 0,
+                SalesPerDay = samples.Count > 0 ? samples.Count / Math.Max(1, (end - start).TotalDays) : 0,
                 VolumeBuckets = new List<VolumeBucket>(numVolumeBuckets),
                 SellSpeedBuckets = new List<SellSpeedBucket>(numSpeedBuckets),
                 PriceStdDev = priceStdDev,
@@ -565,7 +590,7 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     Seller = kvp.Key.ToString(),
                     Count = kvp.Value,
-                    Percentage = rawData.Count > 0 ? (double)kvp.Value / rawData.Count * 100 : 0
+                    Percentage = samples.Count > 0 ? (double)kvp.Value / samples.Count * 100 : 0
                 })
                 .ToList();
             result.TopSellers = topSellers;
@@ -598,6 +623,215 @@ namespace Coflnet.Sky.Commands.Shared
             }
 
             return result;
+        }
+
+        public class LiveMarketAnalysisResult
+        {
+            public int BinCount { get; set; }
+            public int AuctionCount { get; set; }
+            public int SellerCount { get; set; }
+            public long LowestBin { get; set; }
+            public long MedianBin { get; set; }
+            public long HighestBin { get; set; }
+            public double AvgTimeOnMarketSeconds { get; set; }
+            public double MedianTimeOnMarketSeconds { get; set; }
+            public long BucketRangeMax { get; set; }
+            public int AboveRangeCount { get; set; }
+            public List<VolumeBucket> PriceBuckets { get; set; } = new();
+            public List<SellSpeedBucket> TimeOnMarketBuckets { get; set; } = new();
+        }
+
+        /// <summary>
+        /// Gets a live snapshot of the market for an item: BIN price distribution, time-on-market
+        /// buckets and active listing/seller counts. Auction-house only (bazaar is not supported yet,
+        /// items without a matching auction-house item id or without active listings return an empty result).
+        /// </summary>
+        public async Task<LiveMarketAnalysisResult> GetLiveMarketAnalysis(string itemTag, Dictionary<string, string> filters)
+        {
+            // forceget: false - bazaar-only (or otherwise unknown) tags have no auction-house item id;
+            // treat that the same as "no active listings found" instead of throwing, like GetCurrentPrice does.
+            var itemId = GetItemId(itemTag, false);
+            if (itemId == 0)
+                return new LiveMarketAnalysisResult();
+
+            var now = DateTime.UtcNow;
+            var baseSelect = context.Auctions
+                .Where(a => a.ItemId == itemId && a.End > now && (!a.Bin || a.HighestBidAmount == 0));
+
+            if (filters != null && filters.Count > 0)
+            {
+                filters["ItemId"] = itemId.ToString();
+                baseSelect = FilterEngine.AddFilters(baseSelect, filters);
+            }
+
+            var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20)).Token;
+
+            // Ordered so the 20k cap picks a deterministic subset; End is covered by the (ItemId, End) index
+            var rawData = await baseSelect
+                .OrderByDescending(a => a.End)
+                .Take(20_000)
+                .Select(a => new
+                {
+                    a.StartingBid,
+                    a.HighestBidAmount,
+                    a.Count,
+                    a.Start,
+                    a.Bin,
+                    a.SellerId
+                })
+                .AsNoTracking()
+                .ToListAsync(timeout);
+
+            if (rawData.Count == 0)
+                return new LiveMarketAnalysisResult();
+
+            var samples = rawData.Select(d => new LiveListingSample(
+                d.StartingBid, d.HighestBidAmount, d.Count, d.Start, d.Bin, d.SellerId
+            )).ToList();
+
+            return ComputeLiveMarketAnalysis(samples, now);
+        }
+
+        /// <summary>
+        /// Pure computation of <see cref="LiveMarketAnalysisResult"/> from already fetched active-listing samples.
+        /// Contains no DB access so it can be unit tested directly.
+        /// </summary>
+        public static LiveMarketAnalysisResult ComputeLiveMarketAnalysis(IReadOnlyList<LiveListingSample> samples, DateTime now)
+        {
+            var result = new LiveMarketAnalysisResult();
+            if (samples == null || samples.Count == 0)
+                return result;
+
+            var sellerIds = new HashSet<int>();
+            var binPrices = new List<long>();
+            var binTimeOnMarket = new List<double>();
+            int binCount = 0;
+            int auctionCount = 0;
+
+            foreach (var s in samples)
+            {
+                if (s.SellerId != 0)
+                    sellerIds.Add(s.SellerId);
+
+                if (s.Bin)
+                {
+                    binCount++;
+                    var pricePerUnit = s.Count != 0 ? s.StartingBid / s.Count : 0;
+                    binPrices.Add(pricePerUnit);
+                    binTimeOnMarket.Add(Math.Max(0, (now - s.Start).TotalSeconds));
+                }
+                else
+                {
+                    auctionCount++;
+                }
+            }
+
+            result.BinCount = binCount;
+            result.AuctionCount = auctionCount;
+            result.SellerCount = sellerIds.Count;
+
+            if (binPrices.Count == 0)
+                return result;
+
+            var sortedPrices = binPrices.OrderBy(p => p).ToList();
+            result.LowestBin = sortedPrices[0];
+            result.HighestBin = sortedPrices[^1];
+            result.MedianBin = sortedPrices[sortedPrices.Count / 2];
+
+            var sortedTimes = binTimeOnMarket.OrderBy(t => t).ToList();
+            result.AvgTimeOnMarketSeconds = sortedTimes.Average();
+            result.MedianTimeOnMarketSeconds = sortedTimes[sortedTimes.Count / 2];
+
+            // Live listings contain extreme overpriced outliers; buckets span [LowestBin, P95] unless
+            // there are too few BIN listings to make a percentile meaningful.
+            var rangeMin = result.LowestBin;
+            var rangeMax = binCount >= 20 ? NearestRankPercentile(sortedPrices, 95) : result.HighestBin;
+            result.BucketRangeMax = rangeMax;
+            result.AboveRangeCount = binPrices.Count(p => p > rangeMax);
+
+            var range = rangeMax - rangeMin;
+            if (range <= 0)
+                range = 1;
+
+            const int numPriceBuckets = 15;
+            const int numTimeBuckets = 8;
+            var priceBucketWidth = (double)range / numPriceBuckets;
+            var timeBucketWidth = (double)range / numTimeBuckets;
+
+            var priceBucketCounts = new int[numPriceBuckets];
+            var priceBucketSums = new long[numPriceBuckets];
+
+            var timeBucketCounts = new int[numTimeBuckets];
+            var timeBucketPriceSums = new long[numTimeBuckets];
+            var timeBucketTimeSums = new double[numTimeBuckets];
+
+            for (int i = 0; i < binPrices.Count; i++)
+            {
+                var price = binPrices[i];
+                if (price > rangeMax) continue; // excluded outlier, already counted in AboveRangeCount
+
+                var pIdx = (int)((price - rangeMin) / priceBucketWidth);
+                if (pIdx >= numPriceBuckets) pIdx = numPriceBuckets - 1;
+                if (pIdx < 0) pIdx = 0;
+                priceBucketCounts[pIdx]++;
+                priceBucketSums[pIdx] += price;
+
+                var tIdx = (int)((price - rangeMin) / timeBucketWidth);
+                if (tIdx >= numTimeBuckets) tIdx = numTimeBuckets - 1;
+                if (tIdx < 0) tIdx = 0;
+                timeBucketCounts[tIdx]++;
+                timeBucketPriceSums[tIdx] += price;
+                timeBucketTimeSums[tIdx] += binTimeOnMarket[i];
+            }
+
+            for (int i = 0; i < numPriceBuckets; i++)
+            {
+                if (priceBucketCounts[i] == 0) continue;
+                result.PriceBuckets.Add(new VolumeBucket
+                {
+                    MinPrice = rangeMin + (long)(i * priceBucketWidth),
+                    MaxPrice = rangeMin + (long)((i + 1) * priceBucketWidth),
+                    AvgPrice = priceBucketSums[i] / priceBucketCounts[i],
+                    Count = priceBucketCounts[i]
+                });
+            }
+
+            for (int i = 0; i < numTimeBuckets; i++)
+            {
+                if (timeBucketCounts[i] == 0) continue;
+                var avgTimeOnMarket = timeBucketTimeSums[i] / timeBucketCounts[i];
+                result.TimeOnMarketBuckets.Add(new SellSpeedBucket
+                {
+                    MinPrice = rangeMin + (long)(i * timeBucketWidth),
+                    MaxPrice = rangeMin + (long)((i + 1) * timeBucketWidth),
+                    AvgPrice = timeBucketPriceSums[i] / timeBucketCounts[i],
+                    AvgSellTimeSeconds = avgTimeOnMarket,
+                    SpeedCategory = CategoriseTimeOnMarket(avgTimeOnMarket),
+                    SampleCount = timeBucketCounts[i]
+                });
+            }
+
+            return result;
+
+            static string CategoriseTimeOnMarket(double seconds)
+            {
+                if (seconds < 3600) return "FRESH";
+                if (seconds < 6 * 3600) return "AGING";
+                return "STALE";
+            }
+        }
+
+        /// <summary>
+        /// Nearest-rank percentile of an already ascending-sorted list (1-based rank = ceil(percentile/100 * n)).
+        /// </summary>
+        private static long NearestRankPercentile(List<long> sortedAscending, double percentile)
+        {
+            if (sortedAscending == null || sortedAscending.Count == 0)
+                return 0;
+            var rank = (int)Math.Ceiling(percentile / 100.0 * sortedAscending.Count);
+            if (rank < 1) rank = 1;
+            if (rank > sortedAscending.Count) rank = sortedAscending.Count;
+            return sortedAscending[rank - 1];
         }
 
         public async Task<IEnumerable<AveragePrice>> GetHistory(string itemTag, DateTime start, DateTime end, Dictionary<string, string> filters)
