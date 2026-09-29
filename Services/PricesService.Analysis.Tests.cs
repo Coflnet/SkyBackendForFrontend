@@ -13,8 +13,8 @@ namespace Coflnet.Sky.Commands.Shared;
 /// </summary>
 public class PricesServiceAnalysisTests
 {
-    private static PricesService.AnalysisSample Sold(long price, DateTime start, DateTime end, bool isBin = false, int sellerId = 0)
-        => new(price, start, end, isBin, sellerId);
+    private static PricesService.AnalysisSample Sold(long price, DateTime start, DateTime end, bool isBin = false, int sellerId = 0, int buyerId = 0)
+        => new(price, start, end, isBin, sellerId, buyerId);
 
     private static PricesService.LiveListingSample Listing(long startingBid, bool bin, DateTime start, int sellerId = 0, int count = 1, long highestBidAmount = 0)
         => new(startingBid, highestBidAmount, count, start, bin, sellerId);
@@ -34,6 +34,9 @@ public class PricesServiceAnalysisTests
         result.TopSellers.Should().BeEmpty();
         result.MinPrice.Should().Be(0);
         result.MaxPrice.Should().Be(0);
+        result.TopBuyers.Should().BeEmpty();
+        result.UniqueBuyers.Should().Be(0);
+        result.UniqueSellers.Should().Be(0);
     }
 
     [Test]
@@ -163,6 +166,107 @@ public class PricesServiceAnalysisTests
         result.VolumeBuckets.Single().Count.Should().Be(5);
         result.MinPrice.Should().Be(100);
         result.MaxPrice.Should().Be(100);
+    }
+
+    [Test]
+    public void SoldAnalysis_DistinctBuyerCount_CountsUniqueBuyersNotSales()
+    {
+        var end = DateTime.UtcNow;
+        // 5 sales by 3 different buyers (buyer 1 and 2 win twice each, buyer 3 once).
+        var samples = new List<PricesService.AnalysisSample>
+        {
+            Sold(100, end.AddSeconds(-10), end, buyerId: 1),
+            Sold(110, end.AddSeconds(-20), end, buyerId: 1),
+            Sold(120, end.AddSeconds(-30), end, buyerId: 2),
+            Sold(130, end.AddSeconds(-40), end, buyerId: 2),
+            Sold(140, end.AddSeconds(-50), end, buyerId: 3),
+        };
+
+        var result = PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+
+        result.UniqueBuyers.Should().Be(3);
+        result.TotalSales.Should().Be(5);
+    }
+
+    [Test]
+    public void SoldAnalysis_BuyerIdZero_IsIgnoredInCountAndTopBuyers()
+    {
+        var end = DateTime.UtcNow;
+        var samples = new List<PricesService.AnalysisSample>
+        {
+            Sold(100, end.AddSeconds(-10), end, buyerId: 0), // missing/unknown buyer
+            Sold(110, end.AddSeconds(-20), end, buyerId: 0),
+            Sold(120, end.AddSeconds(-30), end, buyerId: 5),
+        };
+
+        var result = PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+
+        result.UniqueBuyers.Should().Be(1);
+        result.TopBuyers.Should().ContainSingle();
+        result.TopBuyers.Single().Buyer.Should().Be("5");
+        result.TopBuyers.Should().NotContain(b => b.Buyer == "0");
+    }
+
+    [Test]
+    public void SoldAnalysis_UniqueSellers_CountsDistinctSellersAndIgnoresZero()
+    {
+        var end = DateTime.UtcNow;
+        var samples = new List<PricesService.AnalysisSample>
+        {
+            Sold(100, end.AddSeconds(-10), end, sellerId: 1),
+            Sold(110, end.AddSeconds(-20), end, sellerId: 1),
+            Sold(120, end.AddSeconds(-30), end, sellerId: 2),
+            Sold(130, end.AddSeconds(-40), end, sellerId: 0), // unknown seller, excluded
+        };
+
+        var result = PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+
+        result.UniqueSellers.Should().Be(2);
+    }
+
+    [Test]
+    public void SoldAnalysis_TopBuyers_OrderingCountsAndPercentages()
+    {
+        var end = DateTime.UtcNow;
+        var samples = new List<PricesService.AnalysisSample>
+        {
+            Sold(100, end.AddSeconds(-10), end, buyerId: 1),
+            Sold(110, end.AddSeconds(-20), end, buyerId: 1),
+            Sold(120, end.AddSeconds(-30), end, buyerId: 1),
+            Sold(130, end.AddSeconds(-40), end, buyerId: 2),
+            Sold(140, end.AddSeconds(-50), end, buyerId: 3),
+        };
+
+        var result = PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+
+        result.TopBuyers.Should().HaveCount(3);
+        result.TopBuyers[0].Buyer.Should().Be("1");
+        result.TopBuyers[0].Count.Should().Be(3);
+        result.TopBuyers[0].Percentage.Should().BeApproximately(60, 0.01); // 3/5
+
+        var others = result.TopBuyers.Skip(1).ToList();
+        others.Should().Contain(b => b.Buyer == "2" && b.Count == 1);
+        others.Should().Contain(b => b.Buyer == "3" && b.Count == 1);
+        others.Should().OnlyContain(b => Math.Abs(b.Percentage - 20) < 0.01); // 1/5 each
+    }
+
+    [Test]
+    public void SoldAnalysis_SamplesWithoutBuyerId_DefaultToZeroBuyersAndDoNotThrow()
+    {
+        var end = DateTime.UtcNow;
+        // Built without specifying buyerId at all, relying on the AnalysisSample default value.
+        var samples = new List<PricesService.AnalysisSample>
+        {
+            Sold(100, end.AddSeconds(-10), end),
+            Sold(110, end.AddSeconds(-20), end),
+        };
+
+        Action act = () => PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+
+        act.Should().NotThrow();
+        var result = PricesService.ComputeAdvancedAnalysis(samples, end.AddDays(-1), end);
+        result.UniqueBuyers.Should().Be(0);
+        result.TopBuyers.Should().BeEmpty();
     }
 
     // ---------------------------------------------------------------------

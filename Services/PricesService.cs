@@ -346,6 +346,20 @@ namespace Coflnet.Sky.Commands.Shared
             public double PriceStdDev { get; set; }
             public double PriceCoeffVariation { get; set; }
             public List<SellerShare> TopSellers { get; set; } = new();
+            /// <summary>
+            /// Number of distinct buyers (highest bidder of a sold auction) in the analysed period.
+            /// Bids without a known buyer id (0) are not counted.
+            /// </summary>
+            public int UniqueBuyers { get; set; }
+            /// <summary>
+            /// Number of distinct sellers in the analysed period. Auctions without a known seller id (0)
+            /// are not counted.
+            /// </summary>
+            public int UniqueSellers { get; set; }
+            /// <summary>
+            /// The top buyers by number of won auctions in the analysed period, mirroring <see cref="TopSellers"/>.
+            /// </summary>
+            public List<BuyerShare> TopBuyers { get; set; } = new();
         }
 
         public class VolumeBucket
@@ -382,9 +396,29 @@ namespace Coflnet.Sky.Commands.Shared
         }
 
         /// <summary>
+        /// Buyer-side counterpart of <see cref="SellerShare"/>: how many auctions a single buyer won
+        /// and what share of the analysed sales that represents.
+        /// </summary>
+        public class BuyerShare
+        {
+            /// <summary>
+            /// Id of the buyer (highest bidder) as a string, mirroring <see cref="SellerShare.Seller"/>.
+            /// </summary>
+            public string Buyer { get; set; }
+            /// <summary>
+            /// Number of auctions this buyer won in the analysed period.
+            /// </summary>
+            public int Count { get; set; }
+            /// <summary>
+            /// Share of total analysed sales this buyer won, in percent (0-100).
+            /// </summary>
+            public double Percentage { get; set; }
+        }
+
+        /// <summary>
         /// A single sold-auction data point used as input for <see cref="ComputeAdvancedAnalysis"/>.
         /// </summary>
-        public readonly record struct AnalysisSample(long PricePerUnit, DateTime Start, DateTime End, bool IsBin, int SellerId);
+        public readonly record struct AnalysisSample(long PricePerUnit, DateTime Start, DateTime End, bool IsBin, int SellerId, int BuyerId = 0);
 
         /// <summary>
         /// A single active-listing data point used as input for <see cref="ComputeLiveMarketAnalysis"/>.
@@ -415,6 +449,8 @@ namespace Coflnet.Sky.Commands.Shared
             // Note: Fetch HighestBidAmount/Count separately (instead of dividing in SQL) so a Count of 0
             // can't cause a division by zero while materializing the row; min/max price are derived from
             // these same rows below instead of a separate aggregate query.
+            // Note: BuyerId is the winning (highest) bidder only, fetched as a correlated subquery so this
+            // stays a single round trip - not the full bid list like GetDetailedHistory needs.
             var rawData = await baseSelect
                 .OrderByDescending(a => a.End)
                 .Take(50_000)
@@ -425,7 +461,8 @@ namespace Coflnet.Sky.Commands.Shared
                     a.Start,
                     a.End,
                     IsBin = a.Bin,
-                    a.SellerId
+                    a.SellerId,
+                    BuyerId = a.Bids.OrderByDescending(b => b.Amount).Select(b => b.BidderId).FirstOrDefault()
                 })
                 .AsNoTracking()
                 .ToListAsync(timeout);
@@ -438,7 +475,8 @@ namespace Coflnet.Sky.Commands.Shared
                 d.Start,
                 d.End,
                 d.IsBin,
-                d.SellerId
+                d.SellerId,
+                d.BuyerId
             )).ToList();
 
             return ComputeAdvancedAnalysis(samples, start, end);
@@ -487,8 +525,9 @@ namespace Coflnet.Sky.Commands.Shared
             var hourlyPriceSums = new double[24];
             var hourlySellTimeSums = new double[24];
 
-            // Seller tracking
+            // Seller / buyer tracking
             var sellerCounts = new Dictionary<int, int>();
+            var buyerCounts = new Dictionary<int, int>();
 
             foreach (var d in samples)
             {
@@ -528,6 +567,14 @@ namespace Coflnet.Sky.Commands.Shared
                     if (!sellerCounts.TryGetValue(d.SellerId, out var cnt))
                         cnt = 0;
                     sellerCounts[d.SellerId] = cnt + 1;
+                }
+
+                // Buyer (winning bidder)
+                if (d.BuyerId != 0)
+                {
+                    if (!buyerCounts.TryGetValue(d.BuyerId, out var bcnt))
+                        bcnt = 0;
+                    buyerCounts[d.BuyerId] = bcnt + 1;
                 }
             }
 
@@ -594,6 +641,21 @@ namespace Coflnet.Sky.Commands.Shared
                 })
                 .ToList();
             result.TopSellers = topSellers;
+            result.UniqueSellers = sellerCounts.Count;
+
+            // Top buyers
+            var topBuyers = buyerCounts
+                .OrderByDescending(kvp => kvp.Value)
+                .Take(5)
+                .Select(kvp => new BuyerShare
+                {
+                    Buyer = kvp.Key.ToString(),
+                    Count = kvp.Value,
+                    Percentage = samples.Count > 0 ? (double)kvp.Value / samples.Count * 100 : 0
+                })
+                .ToList();
+            result.TopBuyers = topBuyers;
+            result.UniqueBuyers = buyerCounts.Count;
 
             for (int i = 0; i < numVolumeBuckets; i++)
             {
