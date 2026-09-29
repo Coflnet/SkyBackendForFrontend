@@ -113,6 +113,9 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     return DescriptionSetting.Default;
                 });
+                // clean up "clear <name>"/"rm <name>" junk stored by the old buggy parsing, even when
+                // a different lore setting is being updated right now
+                CleanupJunkEntries(current.DisableInfoIn);
                 var newVal = UpdateValueOnObject(value, doc.RealName, current);
                 await settingsService.UpdateSetting(con.UserId.ToString(), "description", current);
                 return newVal;
@@ -245,7 +248,44 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        protected static object UpdateValueOnObject(string value, string realKey, object obj)
+        /// <summary>
+        /// Removes junk entries created by the old HashSet setting parsing, which only understood exactly
+        /// <c>clear</c> (wipe all) and <c>rm &lt;name&gt;</c> and would otherwise add a literal
+        /// <c>"clear &lt;name&gt;"</c>/<c>"rm &lt;name&gt;"</c> entry. For every such junk entry this removes
+        /// both the junk entry itself and the entry it names (case-insensitive), honouring what the user
+        /// originally intended. An entry that is exactly <c>clear</c>/<c>rm</c> is just removed.
+        /// </summary>
+        /// <param name="set">The set to clean, may be null.</param>
+        /// <returns>Whether anything was removed.</returns>
+        public static bool CleanupJunkEntries(HashSet<string> set)
+        {
+            if (set == null || set.Count == 0)
+                return false;
+            var junkEntries = set.Where(IsJunkEntry).ToList();
+            if (junkEntries.Count == 0)
+                return false;
+            foreach (var entry in junkEntries)
+            {
+                set.Remove(entry);
+                var parts = entry.Split(' ', 2);
+                var namedEntry = parts.Length == 2 ? parts[1].Trim() : null;
+                if (!string.IsNullOrEmpty(namedEntry))
+                    set.RemoveWhere(s => string.Equals(s, namedEntry, StringComparison.OrdinalIgnoreCase));
+            }
+            return true;
+        }
+
+        private static bool IsJunkEntry(string entry)
+        {
+            if (string.IsNullOrEmpty(entry))
+                return false;
+            return entry.Equals("clear", StringComparison.OrdinalIgnoreCase)
+                || entry.Equals("rm", StringComparison.OrdinalIgnoreCase)
+                || entry.StartsWith("clear ", StringComparison.OrdinalIgnoreCase)
+                || entry.StartsWith("rm ", StringComparison.OrdinalIgnoreCase);
+        }
+
+        protected internal static object UpdateValueOnObject(string value, string realKey, object obj)
         {
             var field = obj.GetType().GetField(realKey);
             object newValue;
@@ -318,17 +358,22 @@ namespace Coflnet.Sky.Commands.Shared
                     set = new HashSet<string>();
                     field.SetValue(obj, set);
                 }
-                if (value == "clear")
+                CleanupJunkEntries(set);
+                var trimmedValue = value?.Trim() ?? string.Empty;
+                if (trimmedValue.Equals("clear", StringComparison.OrdinalIgnoreCase))
                 {
                     set.Clear();
                     return null;
                 }
-                if (value.StartsWith("rm "))
+                var parts = trimmedValue.Split(' ', 2);
+                if (parts.Length == 2 && (parts[0].Equals("clear", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("rm", StringComparison.OrdinalIgnoreCase)))
                 {
-                    set.Remove(value.Substring(3));
+                    var name = parts[1].Trim();
+                    set.RemoveWhere(s => string.Equals(s, name, StringComparison.OrdinalIgnoreCase));
                     return null;
                 }
-                set.Add(value);
+                if (!string.IsNullOrWhiteSpace(value))
+                    set.Add(value);
                 return value;
             }
             else

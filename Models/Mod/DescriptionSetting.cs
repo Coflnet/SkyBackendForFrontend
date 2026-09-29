@@ -24,9 +24,9 @@ public class DescriptionSetting
     public bool DisableHighlighting;
     [SettingsDoc("Disable all sign input suggestions", "nosuggest")]
     public bool DisableSuggestions;
-    [SettingsDoc("Disable side info display in these menus, will add any menu you type into this setting, to remove prefix with `rm `, `clear` is also an option")]
+    [SettingsDoc("Disable side info display in these menus, will add any menu you type into this setting. Prefix with `rm ` or `clear ` (e.g. `clear TradeInfoDisplay`) to remove just that one entry, `clear` alone removes all")]
     public HashSet<string> DisableInfoIn;
-    [SettingsDoc("Bookmarked bazaar item tags, shown in the bazaar menu. Add/remove via the bazaar item page, prefix with `rm ` to remove, `clear` to remove all", "bzBookmarks")]
+    [SettingsDoc("Bookmarked bazaar item tags, shown in the bazaar menu. Add/remove via the bazaar item page. Prefix with `rm ` or `clear ` to remove just that one entry, `clear` alone removes all", "bzBookmarks")]
     public HashSet<string> BazaarBookmarks;
 
     public static DescriptionSetting Default => new DescriptionSetting()
