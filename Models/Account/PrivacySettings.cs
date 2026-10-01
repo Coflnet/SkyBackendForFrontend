@@ -16,6 +16,9 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|You donated your" // museum donation
                 + @"|: \d+m$" // chat lowballing discussion
                 + @"|You sold " // npc sell for limit detection
+                + @"|\s*(?:Master Mode )?The Catacombs - (?:Floor [IVX]+|Entrance)\s*$" // dungeon run completed (floor header of the end summary)
+                + @"|\s*Team Score: \d+ \(" // dungeon run score
+                + @"|\s*(?:WOOD|GOLD|DIAMOND|EMERALD|OBSIDIAN|BEDROCK) CHEST REWARDS" // dungeon reward chest actually opened
                 + @"|can't find a player by the name of|That player is not online, try another user" // autotip corrections
                 + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
         public const string DefaultChatBlockRegex =
