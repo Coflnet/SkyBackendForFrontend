@@ -10,6 +10,7 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|You collected|\[Auction\]|BIN Auction started|You cancelled|You purchased "
                 + @"|Profile ID: |You placd a Trap|\+\d+ .* Attribute \(Level "
                 + @"|You caught |CAPTURE! You caught |\s+Chameleon" // catching shards
+                + @"|LOOT SHARE You received " // shards received for assisting a party member
                 + @"|\[NPC\] (?:Hunter Harry|Huntress Melissa)|You have been given a " // Safari NPC shard trades
                 + @"|\s*\+[\d,]+ Shards" // Safari reward summary (hover contains the shard breakdown)
                 + @"|Added items|Removed items" // stash adding notification
