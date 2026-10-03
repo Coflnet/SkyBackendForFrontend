@@ -17,6 +17,10 @@ namespace Coflnet.Sky.Commands.Shared
         /// More than one item was traded, not exact price
         /// </summary>
         MultiItemTrade = 4,
+        /// <summary>Purchase cost is unknown and profit is a placeholder.</summary>
+        UnknownCost = 8,
+        /// <summary>Purchase cost is estimated and profit is a placeholder.</summary>
+        UncertainCost = 16,
     }
     /// <summary>
     /// Details about a single flip
