@@ -20,6 +20,7 @@ namespace Coflnet.Sky.Commands
         Task<bool> SendSold(string uuid);
         FlipSettings Settings { get; }
         AccountInfo AccountInfo { get; }
+        Task<AccountTier> UserAccountTier();
         long Id { get; }
         string UserId { get; }
         string GameServer { get; }
