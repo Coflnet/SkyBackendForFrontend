@@ -26,8 +26,15 @@ public class ProfileClient : IProfileClient
 {
     private RestClient profileClient = null;
     private PlayerState.Client.Api.IPlayerStateApi playerStateApi;
+    private ICollectionNameResolver collectionNames;
     public ProfileClient(IConfiguration config, PlayerState.Client.Api.IPlayerStateApi playerStateApi)
+        : this(config, playerStateApi, new CollectionNameResolver())
     {
+    }
+
+    public ProfileClient(IConfiguration config, PlayerState.Client.Api.IPlayerStateApi playerStateApi, ICollectionNameResolver collectionNames)
+    {
+        this.collectionNames = collectionNames;
         profileClient = new RestClient(config["PROFILE_BASE_URL"]);
         this.playerStateApi = playerStateApi;
     }
@@ -70,13 +77,14 @@ public class ProfileClient : IProfileClient
         var skills = await skillsTask;
         var collection = await collectionTask;
         var crafts = await craftsTask;
+        var collectionIds = await ResolveCollectionIds(crafts, collectionNames);
         var list = new List<ProfitableCraft>();
         foreach (var item in crafts)
         {
             if (item == null)
                 continue;
 
-            if (IsNotLimitedByCollection(collection, item) && IsNotLimitedBySlayer(slayers, item) && IsNotLimitedBySkills(skills, item))
+            if (IsNotLimitedByCollection(collection, item, collectionIds) && IsNotLimitedBySlayer(slayers, item) && IsNotLimitedBySkills(skills, item))
                 list.Add(item);
         }
         return list;
@@ -95,12 +103,37 @@ public class ProfileClient : IProfileClient
                               && slayerElem.Level.currentLevel >= item.ReqSlayer.Level;
         }
 
-        static bool IsNotLimitedByCollection(Dictionary<string, CollectionElem> collection, ProfitableCraft item)
+    }
+
+    internal static async Task<Dictionary<string, string>> ResolveCollectionIds(IEnumerable<ProfitableCraft> crafts, ICollectionNameResolver resolver)
+    {
+        var ids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in crafts.Where(c => c?.ReqCollection?.Name != null).Select(c => c.ReqCollection.Name).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            return item.ReqCollection == null
-                        || collection.TryGetValue(item.ReqCollection.Name, out CollectionElem elem)
-                                && elem.tier >= item.ReqCollection.Level;
+            try
+            {
+                var id = await resolver.GetCollectionId(name);
+                if (id != null)
+                    ids[name] = id;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not resolve collection " + name + " " + e.Message);
+            }
         }
+        return ids;
+    }
+
+    /// <summary>
+    /// The craft requirement holds the display name, the profile collection is keyed by collection id
+    /// </summary>
+    internal static bool IsNotLimitedByCollection(Dictionary<string, CollectionElem> collection, ProfitableCraft item, IReadOnlyDictionary<string, string> nameToId)
+    {
+        if (item.ReqCollection == null)
+            return true;
+        return nameToId.TryGetValue(item.ReqCollection.Name ?? "", out var id)
+                    && collection.TryGetValue(id, out CollectionElem elem)
+                    && elem.tier >= item.ReqCollection.Level;
     }
 
     public async Task<Dictionary<string, string>> GetProfiles(string playerId, DateTime maxAge = default)
