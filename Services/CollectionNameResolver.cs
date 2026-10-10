@@ -30,7 +30,8 @@ public class CollectionNameResolver : ICollectionNameResolver
     private static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(2);
 
     /// <summary>
-    /// Names the game renamed that are no longer in the resource but still occur in the crafts data
+    /// Names the game renamed that are no longer in the resource but still occur in the crafts data,
+    /// and names the crafts data spells differently ("Hemovibe Rift")
     /// </summary>
     internal static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -43,6 +44,8 @@ public class CollectionNameResolver : ICollectionNameResolver
         { "Clay", "CLAY_BALL" },
         { "Clownfish", "RAW_FISH:2" },
         { "Redstone", "REDSTONE" },
+        { "Raw Fish", "RAW_FISH" },
+        { "Hemovibe Rift", "HEMOVIBE" },
     };
 
     private readonly Func<Task<string>> loader;

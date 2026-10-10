@@ -54,6 +54,15 @@ public class CollectionNameResolverTests
     }
 
     [Test]
+    public async Task NamesTheCraftsDataSpellsDifferently()
+    {
+        // the resource calls these "Raw Cod" and "Hemovibe"
+        (await Passes("Raw Fish", 1, new() { { "RAW_FISH", 1 } })).Should().BeTrue();
+        (await Passes("Raw Fish", 2, new() { { "RAW_FISH", 1 } })).Should().BeFalse();
+        (await Passes("Hemovibe Rift", 5, new() { { "HEMOVIBE", 5 } })).Should().BeTrue();
+    }
+
+    [Test]
     public async Task UnknownNameNotMet()
     {
         (await Passes("Nonexistent", 1, new() { { "MELON", 9 } })).Should().BeFalse();
