@@ -69,7 +69,7 @@ public class FilterStateService : BackgroundService
         {
             try
             {
-                await GetItemCategory(item);
+                await LoadItemCategory(item);
             }
             catch (Exception e)
             {
@@ -232,19 +232,43 @@ public class FilterStateService : BackgroundService
         return true;
     }
 
-    public async Task GetItemCategory(ItemCategory category)
+    private readonly ConcurrentDictionary<ItemCategory, Lazy<Task>> categoryLoads = new();
+
+    /// <summary>
+    /// Makes sure the tags of a category are loaded. Concurrent callers share one load,
+    /// the set is built locally and published only when complete (published sets are never mutated).
+    /// A failed load is not cached, the next call retries.
+    /// </summary>
+    public Task GetItemCategory(ItemCategory category)
     {
-        var items = await itemsApi.ItemsCategoryCategoryItemsGetAsync(category);
-        if (!State.itemCategories.ContainsKey(category))
-            State.itemCategories[category] = new HashSet<string>();
-        if (items == null)
+        if (State.itemCategories.ContainsKey(category))
+            return Task.CompletedTask;
+        return LoadItemCategory(category);
+    }
+
+    /// <summary>Reloads a category, sharing the load with concurrent callers</summary>
+    private Task LoadItemCategory(ItemCategory category)
+    {
+        Lazy<Task> created = null;
+        created = new Lazy<Task>(() => LoadItemCategoryOnce(category, created));
+        return categoryLoads.GetOrAdd(category, created).Value;
+    }
+
+    private async Task LoadItemCategoryOnce(ItemCategory category, Lazy<Task> self)
+    {
+        try
         {
-            Activity.Current?.AddTag("error", "could_not_load");
-            throw new CoflnetException("could_not_load", $"Could not load items for category {category}");
+            var items = await itemsApi.ItemsCategoryCategoryItemsGetAsync(category);
+            if (items == null)
+            {
+                Activity.Current?.AddTag("error", "could_not_load");
+                throw new CoflnetException("could_not_load", $"Could not load items for category {category}");
+            }
+            State.itemCategories[category] = new HashSet<string>(items);
         }
-        foreach (var item in items)
+        finally
         {
-            State.itemCategories[category].Add(item);
+            categoryLoads.TryRemove(new KeyValuePair<ItemCategory, Lazy<Task>>(category, self));
         }
     }
 
@@ -319,15 +343,8 @@ public class FilterStateService : BackgroundService
         // manually update item categories
         foreach (var item in newState.itemCategories)
         {
-            if (!local.itemCategories.ContainsKey(item.Key))
-            {
-                local.itemCategories[item.Key] = new HashSet<string>();
-            }
-            local.itemCategories[item.Key].Clear();
-            foreach (var itemValue in item.Value)
-            {
-                local.itemCategories[item.Key].Add(itemValue);
-            }
+            // swap instead of mutating so concurrent readers never see a half updated set
+            local.itemCategories[item.Key] = new HashSet<string>(item.Value);
         }
     }
 

@@ -26,8 +26,14 @@ namespace Coflnet.Sky.Commands.Shared
                 Activity.Current.Log($"Got itemCategory {itemCategory}, updating cache");
                 service.GetItemCategory(itemCategory).Wait();
             }
-            var tags = service.State.itemCategories[itemCategory];
-            return flip => tags.Contains(flip.Auction.Tag);
+            // resolve the set on every evaluation, refreshes publish a new set instance
+            var categories = service.State.itemCategories;
+            return flip => InCategory(categories, itemCategory, flip.Auction.Tag);
+        }
+
+        private static bool InCategory(System.Collections.Concurrent.ConcurrentDictionary<ItemCategory, System.Collections.Generic.HashSet<string>> categories, ItemCategory category, string tag)
+        {
+            return categories.TryGetValue(category, out var tags) && tags.Contains(tag);
         }
     }
 }
