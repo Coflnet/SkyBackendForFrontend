@@ -21,6 +21,7 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|\s*Team Score: \d+ \(" // dungeon run score
                 + @"|\s*KUUDRA DOWN!\s*$" // kuudra run won (centered end banner, run length)
                 + @"|\s*(?:WOOD|GOLD|DIAMOND|EMERALD|OBSIDIAN|BEDROCK) CHEST REWARDS" // dungeon reward chest actually opened
+                + @"|\s+(?:EXCAVATION COMPLETE|Fossil Essence)" // fossil excavation summary header and the essence reward line (essence never touches inventory or sacks)
                 + @"|can't find a player by the name of|That player is not online, try another user" // autotip corrections
                 + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
         public const string DefaultChatBlockRegex =
