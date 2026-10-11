@@ -61,7 +61,7 @@ namespace Coflnet.Sky.Commands.Shared
         /// <summary>
         /// Special load burst queue that will send out 5 flips at load
         /// </summary>
-        private Queue<FlipInstance> LoadBurst = new Queue<FlipInstance>();
+        private ConcurrentQueue<FlipInstance> LoadBurst = new ConcurrentQueue<FlipInstance>();
         private ConcurrentDictionary<long, DateTime> SoldAuctions = new ConcurrentDictionary<long, DateTime>();
         IConfiguration config;
         private ILogger<FlipperService> logger;
@@ -200,7 +200,7 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 try
                 {
-                    foreach (var item in toSendFlips.ToList())
+                    foreach (var item in toSendFlips.Where(f => f != null).ToList())
                     {
                         await con.SendFlip(item);
 
@@ -533,8 +533,9 @@ namespace Coflnet.Sky.Commands.Shared
             if (flip.Uuid[0] == 'a')
                 Console.Write("sf+" + SlowSubs.Count);
             LoadBurst.Enqueue(flip);
+            // SendSlowFlip runs concurrently, a plain Queue got corrupted (null entries when enumerated)
             if (LoadBurst.Count > 5)
-                LoadBurst.Dequeue();
+                LoadBurst.TryDequeue(out _);
         }
 
         ConsumerConfig consumerConf = new ConsumerConfig

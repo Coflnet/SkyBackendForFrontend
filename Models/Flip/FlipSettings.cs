@@ -124,6 +124,8 @@ namespace Coflnet.Sky.Commands.Shared
         /// <returns>true if it matches</returns>
         public (bool, string) MatchesSettings(FlipInstance flip)
         {
+            if (flip == null)
+                return (false, "no flip");
             MakeSureMatchersAreInitialized();
             if (IsFinderBlocked(flip.Finder))
                 return (false, "finder " + flip.Finder.ToString());
