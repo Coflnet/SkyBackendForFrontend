@@ -183,6 +183,7 @@ namespace Coflnet.Sky.Commands.Shared
                 return new SettingsApi(config["SETTINGS_BASE_URL"]);
             });
             services.AddSingleton<FilterEngine>();
+            services.AddSingleton<FilterQueryParser>();
             services.AddSingleton<IConnectApi, ConnectApi>(
                 sp => new ConnectApi(sp.GetRequiredService<IConfiguration>()["MCCONNECT_BASE_URL"]));
 
