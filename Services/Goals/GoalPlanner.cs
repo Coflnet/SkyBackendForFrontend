@@ -112,7 +112,7 @@ public class GoalPlanner(ICraftsApi craftsApi, IForgeApi forgeApi)
                 "npc" => StepKind.Npc,
                 _ => bazaar.Contains(tag) ? StepKind.InstaBuy : StepKind.Auction
             };
-            steps.Add(new GoalStep { Kind = kind, ItemTag = tag, Quantity = fill.Quantity });
+            steps.Add(new GoalStep { Kind = kind, ItemTag = tag, Quantity = fill.Quantity, UnitPrice = fill.UnitPrice > 0 ? fill.UnitPrice : null });
         }
         steps = Merge(steps);
         var shortfall = expected - steps.Sum(s => s.Quantity);
@@ -133,10 +133,21 @@ public class GoalPlanner(ICraftsApi craftsApi, IForgeApi forgeApi)
                 ? result.FirstOrDefault(r => r.Children.Count == 0 && r.Kind == step.Kind && r.ItemTag == step.ItemTag && r.Note == step.Note)
                 : null;
             if (existing != null)
+            {
+                existing.UnitPrice = WeightedPrice([(existing.Quantity, existing.UnitPrice), (step.Quantity, step.UnitPrice)]);
                 existing.Quantity += step.Quantity;
+            }
             else
                 result.Add(step);
         }
         return result;
+    }
+
+    /// <summary>Quantity weighted average of the known unit prices, null when none is known.</summary>
+    public static double? WeightedPrice(IEnumerable<(long quantity, double? price)> parts)
+    {
+        var known = parts.Where(p => p.price.HasValue && p.quantity > 0).ToList();
+        var total = known.Sum(p => p.quantity);
+        return total == 0 ? null : known.Sum(p => p.quantity * p.price.Value) / total;
     }
 }

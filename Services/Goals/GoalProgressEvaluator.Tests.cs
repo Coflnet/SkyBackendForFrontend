@@ -117,4 +117,15 @@ public class GoalProgressEvaluatorTests
         JsonConvert.SerializeObject(StepStatus.Todo).Should().Be("\"todo\"");
         JsonConvert.DeserializeObject<GoalStep>(json).Kind.Should().Be(StepKind.BuyOrder);
     }
+
+    [Test]
+    public void AuctionStepsComeFirstAndSurviveTheCut()
+    {
+        var kids = Enumerable.Range(0, 6).Select(i => S("b" + i, StepKind.InstaBuy, "T" + i, 1)).ToList();
+        kids.Add(S("auc", StepKind.Auction, "AUC", 1));
+        kids.Add(S("auc2", StepKind.Auction, "AUC2", 1));
+        var p = Eval(S("r", StepKind.Craft, "R", 1, kids.ToArray()));
+        p.Actionable.Should().HaveCount(GoalProgressEvaluator.MaxActionable);
+        p.Actionable.Select(a => a.Id).Should().Equal("auc", "auc2", "b0", "b1", "b2");
+    }
 }

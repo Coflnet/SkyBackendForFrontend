@@ -34,6 +34,8 @@ public class GoalStep
     public DateTime? DoneAt { get; set; }
     public DateTime? OrderedAt { get; set; }
     public string Note { get; set; }
+    /// <summary>Price per unit the plan assumed when the goal was created; null for goals created before this field existed or when unknown.</summary>
+    public double? UnitPrice { get; set; }
 }
 
 [JsonConverter(typeof(StringEnumConverter), typeof(Newtonsoft.Json.Serialization.CamelCaseNamingStrategy))]

@@ -18,7 +18,8 @@ public static class GoalProgressEvaluator
         Eval(goal.Root, available, openBuyOrders, forgingTags, progress.Status);
         var actionable = new List<GoalStep>();
         Collect(goal.Root, progress.Status, actionable);
-        progress.Actionable = actionable.Take(MaxActionable).ToList();
+        // auctions first (stable otherwise): they are the scarce purchases and must survive the cut
+        progress.Actionable = actionable.OrderBy(s => s.Kind == StepKind.Auction ? 0 : 1).Take(MaxActionable).ToList();
         progress.Total = progress.Status.Count;
         progress.Done = progress.Status.Values.Count(s => s == StepStatus.Done);
         progress.Complete = progress.Status[goal.Root.Id] == StepStatus.Done;

@@ -956,8 +956,9 @@ namespace Coflnet.Sky.Commands.Shared
         /// </summary>
         /// <param name="itemTag">The itemTag to get prices for</param>
         /// <param name="count">For how many items the price should be retrieved</param>add 
+        /// <param name="minListedFor">When set, auction house listings younger than this are ignored (bazaar items ignore it)</param>
         /// <returns></returns>
-        public async Task<CurrentPrice> GetCurrentPrice(string itemTag, int count = 1)
+        public async Task<CurrentPrice> GetCurrentPrice(string itemTag, int count = 1, TimeSpan? minListedFor = null)
         {
             int id = GetItemId(itemTag, false);
             if (id == 0)
@@ -987,7 +988,8 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 var filter = new Dictionary<string, string>();
                 var lowestBins = await context.Auctions
-                        .Where(a => a.ItemId == id && a.End > DateTime.Now && a.HighestBidAmount == 0 && a.Bin)
+                        .Where(a => a.ItemId == id)
+                        .WhereActiveBin(DateTime.Now, minListedFor)
                         .OrderBy(a => a.StartingBid)
                         .Take(count <= 1 ? 1 : count)
                         .AsNoTracking()
@@ -1025,6 +1027,25 @@ namespace Coflnet.Sky.Commands.Shared
             }
 
             return -1;
+        }
+    }
+
+    /// <summary>Query helpers for auctions.</summary>
+    public static class AuctionQueryExtensions
+    {
+        /// <summary>
+        /// Keeps the active BIN auctions, optionally only those that are listed for at least <paramref name="minListedFor"/>
+        /// (a freshly listed underpriced auction is sniped within seconds).
+        /// </summary>
+        public static IQueryable<SaveAuction> WhereActiveBin(this IQueryable<SaveAuction> auctions, DateTime now, TimeSpan? minListedFor = null)
+        {
+            var active = auctions.Where(a => a.End > now && a.HighestBidAmount == 0 && a.Bin);
+            if (minListedFor is { } age && age > TimeSpan.Zero)
+            {
+                var latestStart = now - age;
+                active = active.Where(a => a.Start <= latestStart);
+            }
+            return active;
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -31,7 +32,7 @@ public static class GoalHud
 {
     public static InfoDisplayDto BuildDisplay(GoalList list, IReadOnlyDictionary<string, GoalProgress> progressByGoalId,
         bool hasCookie, Func<string, string> nameLookup, Func<string, string> searchNameLookup,
-        IReadOnlyDictionary<string, string> lbinUuidByTag)
+        IReadOnlyDictionary<string, AuctionOffer> offerByTag)
     {
         var goals = list?.Goals ?? new();
         if (goals.Count == 0)
@@ -39,10 +40,15 @@ public static class GoalHud
         var focus = goals.FirstOrDefault(g => g.Id == list.FocusId) ?? goals[0];
         var dto = new InfoDisplayDto();
         var focusProgress = Get(progressByGoalId, focus.Id);
-        dto.Title = $"§6§lGoal: §f{focus.Title} §7{focusProgress?.Done ?? 0}/{focusProgress?.Total ?? 0}";
+        dto.Title = $"§6§lGoal: §f{focus.Title} §7{focusProgress?.Done ?? 0}/{focusProgress?.Total ?? 0} steps";
         if (focusProgress != null)
-            foreach (var step in focusProgress.Actionable)
-                dto.Lines.Add(StepLine(step, hasCookie, nameLookup, searchNameLookup, lbinUuidByTag));
+        {
+            var steps = MergeSameItem(focusProgress.Actionable);
+            // auctions can be sniped, so the other purchases only come after them
+            var auctionFirst = steps.Any(s => s.Kind == StepKind.Auction);
+            foreach (var step in steps)
+                dto.Lines.Add(StepLine(step, hasCookie, nameLookup, searchNameLookup, offerByTag, auctionFirst));
+        }
         foreach (var other in goals.Where(g => g != focus))
         {
             var p = Get(progressByGoalId, other.Id);
@@ -56,38 +62,95 @@ public static class GoalHud
         return dto;
     }
 
+    /// <summary>
+    /// Presents purchase steps for the same item as one step with the summed quantity.
+    /// Merged entries are new instances (the persisted goal tree is never mutated), keeping the id of the first step.
+    /// </summary>
+    public static IReadOnlyList<GoalStep> MergeSameItem(IEnumerable<GoalStep> steps)
+    {
+        var result = new List<GoalStep>();
+        var groups = new Dictionary<(StepKind, string), List<GoalStep>>();
+        var slots = new List<(GoalStep single, List<GoalStep> group)>();
+        foreach (var step in steps)
+        {
+            var mergeable = step.Kind is StepKind.BuyOrder or StepKind.InstaBuy or StepKind.Npc or StepKind.Auction && step.ItemTag != null;
+            if (!mergeable)
+            {
+                slots.Add((step, null));
+                continue;
+            }
+            if (groups.TryGetValue((step.Kind, step.ItemTag), out var group))
+                group.Add(step);
+            else
+            {
+                groups[(step.Kind, step.ItemTag)] = group = new List<GoalStep> { step };
+                slots.Add((null, group));
+            }
+        }
+        foreach (var (single, group) in slots)
+        {
+            if (group == null || group.Count == 1)
+                result.Add(single ?? group[0]);
+            else
+                result.Add(new GoalStep
+                {
+                    Id = group[0].Id,
+                    Kind = group[0].Kind,
+                    ItemTag = group[0].ItemTag,
+                    Note = group[0].Note,
+                    Quantity = group.Sum(g => g.Quantity),
+                    UnitPrice = GoalPlanner.WeightedPrice(group.Select(g => (g.Quantity, g.UnitPrice)))
+                });
+        }
+        return result;
+    }
+
     private static GoalProgress Get(IReadOnlyDictionary<string, GoalProgress> map, string id)
         => map != null && map.TryGetValue(id, out var p) ? p : null;
 
+    private const string AuctionFirstHover = "Buy the auction item first, it can sell before you get to it.\n";
+
     private static ChatPartDto StepLine(GoalStep step, bool hasCookie, Func<string, string> nameLookup,
-        Func<string, string> searchNameLookup, IReadOnlyDictionary<string, string> lbin)
+        Func<string, string> searchNameLookup, IReadOnlyDictionary<string, AuctionOffer> offers, bool auctionFirst)
     {
         var name = nameLookup(step.ItemTag) ?? step.ItemTag;
         var qty = step.Quantity;
+        // purchases other than the auction wait while an auction step is pending
+        var color = auctionFirst ? "§7then " : "§c";
+        var hoverPrefix = auctionFirst ? AuctionFirstHover : "";
         switch (step.Kind)
         {
             case StepKind.BuyOrder:
             case StepKind.InstaBuy:
+                var verb = step.Kind == StepKind.BuyOrder ? "Order" : "Buy";
                 var search = searchNameLookup(step.ItemTag) ?? name;
                 return new ChatPartDto
                 {
-                    Text = $"§c{qty}x {name}",
-                    Hover = hasCookie ? $"Click to place a bazaar order for {qty}x {name}" : "Open the bazaar first, then click",
+                    Text = $"{color}{verb} {qty}x {name}",
+                    Hover = hoverPrefix + (hasCookie ? $"Click to place a bazaar order for {qty}x {name}" : "Open the bazaar first, then click"),
                     OnClick = hasCookie ? $"/cofl bzorder {qty} {search}" : $"/cofl bzorder search {qty} {search}"
                 };
             case StepKind.Auction:
-                var hasLbin = lbin != null && lbin.TryGetValue(step.ItemTag, out var uuid) && !string.IsNullOrEmpty(uuid);
+                AuctionOffer offer = null;
+                if (offers != null && step.ItemTag != null)
+                    offers.TryGetValue(step.ItemTag, out offer);
+                if (offer == null)
+                    return new ChatPartDto { Text = $"§cBuy {qty}x {name} §7(auction)", Hover = "Click to open the auction house", OnClick = "/ah" };
+                var command = offer.ViewCommand();
+                var hover = command != null ? "Click to view the cheapest auction" : "Click to open the auction house";
+                if (step.UnitPrice is { } planned)
+                    hover += $"\nPlanned {ShortPrice(planned)}, cheapest now {ShortPrice(offer.Price)}";
                 return new ChatPartDto
                 {
-                    Text = $"§c{qty}x {name}",
-                    Hover = hasLbin ? "Click to view the cheapest auction" : "Click to open the auction house",
-                    OnClick = hasLbin ? $"/viewauction {lbin[step.ItemTag]}" : "/ah"
+                    Text = $"§cBuy {qty}x {name} §7(auction) §f{ShortPrice(offer.Price)}{ProfitNote(step, offer)}",
+                    Hover = hover,
+                    OnClick = command ?? "/ah"
                 };
             case StepKind.Npc:
                 return new ChatPartDto
                 {
-                    Text = $"§c{qty}x {name}" + (string.IsNullOrEmpty(step.Note) ? "" : $" §7({step.Note})"),
-                    Hover = "Buy from an NPC"
+                    Text = $"{color}Buy {qty}x {name} §7({(string.IsNullOrEmpty(step.Note) ? "NPC" : step.Note)})",
+                    Hover = hoverPrefix + "Buy from an NPC"
                 };
             case StepKind.Craft:
                 return new ChatPartDto { Text = $"§aCraft {name}: click to open /recipe", Hover = "Click to open the recipe", OnClick = $"/recipe {name}" };
@@ -101,6 +164,42 @@ public static class GoalHud
                     OnClick = hasCookie ? $"/bz {name}" : "/ah"
                 };
         }
+    }
+
+    /// <summary>
+    /// Difference between the offer and the planned price of a single item (positive: more expensive than planned),
+    /// null when the plan has no price, more than one item is needed or the difference is below 0.5 %.
+    /// </summary>
+    public static double? PriceDifference(GoalStep step, AuctionOffer offer)
+    {
+        if (offer == null || step.Quantity != 1 || step.UnitPrice is not { } planned || planned <= 0)
+            return null;
+        var diff = offer.Price - planned;
+        return Math.Abs(diff) >= planned * 0.005 ? diff : null;
+    }
+
+    private static string ProfitNote(GoalStep step, AuctionOffer offer)
+        => PriceDifference(step, offer) switch
+        {
+            > 0 and var diff => $" §c-{ShortPrice(diff)} profit",
+            < 0 and var diff => $" §a+{ShortPrice(-diff)} profit",
+            _ => ""
+        };
+
+    /// <summary>Formats a coin amount with at most three significant digits and a k, m or b suffix (2.5m, 980k).</summary>
+    public static string ShortPrice(double value)
+    {
+        var sign = value < 0 ? "-" : "";
+        var abs = Math.Abs(value);
+        string[] suffixes = ["", "k", "m", "b"];
+        var unit = 0;
+        while (abs >= 999.5 && unit < suffixes.Length - 1)
+        {
+            abs /= 1000;
+            unit++;
+        }
+        var scaled = abs < 10 ? Math.Round(abs, 2) : abs < 100 ? Math.Round(abs, 1) : Math.Round(abs);
+        return sign + scaled.ToString("0.##", CultureInfo.InvariantCulture) + suffixes[unit];
     }
 
     public static string Hash(InfoDisplayDto dto)

@@ -12,7 +12,7 @@ namespace Coflnet.Sky.Commands.Shared.Goals;
 public class GoalPlannerTests
 {
     private static readonly HashSet<string> Bazaar = new() { "BZ_ITEM", "BZ_ORDER" };
-    private static AcquisitionFill F(string s, long q) => new(source: s, quantity: q);
+    private static AcquisitionFill F(string s, long q, double price = 0) => new(source: s, quantity: q, unitPrice: price, cost: price * q);
     private static string Name(string t) => t.ToLowerInvariant();
 
     private static CraftAcquisitionPlan Buy(string tag, long qty, string method, params AcquisitionFill[] fills)
@@ -138,5 +138,19 @@ public class GoalPlannerTests
         var act = () => new GoalPlanner(new Mock<ICraftsApi>().Object, forge.Object)
             .Build(StepKind.Forge, "X", 1, false, Bazaar, Name, "mod");
         await act.Should().ThrowAsync<System.ArgumentException>().WithMessage("not a forge item*");
+    }
+
+    [Test]
+    public void FillUnitPriceIsStoredAndMergedWeighted()
+    {
+        var plan = Craft("ROOT", 1, new()
+        {
+            Buy("AH_ITEM", 1, "buy", F("insta", 1, 2_500_000)),
+            Buy("BZ_ITEM", 4, "buy", F("insta", 1, 100), F("insta", 3, 200)),
+            Buy("NO_PRICE", 1, "buy", F("insta", 1)),
+        });
+        var root = GoalPlanner.FromPlan(plan, Bazaar, Name).Single();
+        root.Children.Select(c => c.UnitPrice).Should().Equal(2_500_000d, 175d, null);
+        root.Children[1].Quantity.Should().Be(4);
     }
 }
