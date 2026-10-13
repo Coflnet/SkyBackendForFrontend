@@ -33,6 +33,8 @@ public class GoalStep
     public List<GoalStep> Children { get; set; } = new();
     public DateTime? DoneAt { get; set; }
     public DateTime? OrderedAt { get; set; }
+    /// <summary>Amount of the item the chat confirmed as listed or sold, only used by the Sell step.</summary>
+    public long Sold { get; set; }
     public string Note { get; set; }
     /// <summary>Price per unit the plan assumed when the goal was created; null for goals created before this field existed or when unknown.</summary>
     public double? UnitPrice { get; set; }

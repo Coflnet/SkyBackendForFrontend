@@ -13,7 +13,7 @@ public class GoalHudTests
         => new() { Goal = g, Done = done, Total = total, Actionable = actionable.ToList() };
 
     private static InfoDisplayDto Build(GoalList list, Dictionary<string, GoalProgress> prog, bool cookie, Dictionary<string, AuctionOffer> offers = null)
-        => GoalHud.BuildDisplay(list, prog, cookie, t => t.ToLowerInvariant(), t => "s_" + t, offers ?? new());
+        => GoalHud.BuildDisplay(list, prog, cookie, t => t.ToLowerInvariant(), t => "s_" + t, offers ?? new(), t => t == "BZITEM");
 
     [Test]
     public void BuyOrderClickDependsOnCookie()
@@ -271,7 +271,54 @@ public class GoalHudTests
             new GoalStep { Kind = StepKind.Sell, ItemTag = "X", Quantity = 1 },
         };
         var d = Build(new GoalList { Goals = { g } }, new() { ["g"] = Progress(g, 0, 3, steps) }, true);
-        d.Lines.Select(l => l.OnClick).Should().Equal("/recipe x", "/warp forge", "/bz x");
+        d.Lines.Select(l => l.OnClick).Should().Equal("/recipe x", "/warp forge", "/ah");
+    }
+
+    private static InfoDisplayDto SellLine(string tag, bool cookie)
+    {
+        var g = new Goal { Id = "g", Title = "G" };
+        var step = new GoalStep { Kind = StepKind.Sell, ItemTag = tag, Quantity = 1 };
+        return Build(new GoalList { Goals = { g } }, new() { ["g"] = Progress(g, 0, 1, step) }, cookie);
+    }
+
+    [Test]
+    public void Sell_WithCookie_BazaarItemOpensBazaar()
+        => SellLine("BZITEM", true).Lines.Single().OnClick.Should().Be("/bz bzitem");
+
+    [Test]
+    public void Sell_NoCookie_AuctionItemHasNoCommandAndSaysWhereToGo()
+    {
+        var line = SellLine("AHITEM", false).Lines.Single();
+        line.OnClick.Should().BeNull();
+        line.Text.Should().Be("§aSell ahitem §7at the Auction Master");
+        line.Hover.Should().Be(GoalHud.NoCookieAuctionHover);
+    }
+
+    [Test]
+    public void Sell_NoCookie_BazaarItemHasNoCommandAndSaysWhereToGo()
+    {
+        var line = SellLine("BZITEM", false).Lines.Single();
+        line.OnClick.Should().BeNull();
+        line.Text.Should().Be("§aSell bzitem §7at the Bazaar");
+        line.Hover.Should().Contain("/bz");
+    }
+
+    [Test]
+    public void Auction_NoCookie_NoOfferOrShortId_HasNoAhCommand_ViewAuctionStillWorks()
+    {
+        var g = new Goal { Id = "g", Title = "G" };
+        var step = new GoalStep { Kind = StepKind.Auction, ItemTag = "AH", Quantity = 1 };
+        var list = new GoalList { Goals = { g } };
+        var prog = new Dictionary<string, GoalProgress> { ["g"] = Progress(g, 0, 1, step) };
+
+        var none = Build(list, prog, false).Lines.Single();
+        none.OnClick.Should().BeNull();
+        none.Text.Should().EndWith("at the Auction Master");
+
+        var uuid = "70e3559483ce4da8b3c5a1d2e3f40516";
+        var viewable = Build(list, prog, false, new() { ["AH"] = new AuctionOffer(uuid, 1000) }).Lines.Single();
+        viewable.OnClick.Should().StartWith("/viewauction ");
+        viewable.Text.Should().NotContain("Auction Master");
     }
 
     [Test]
@@ -292,5 +339,17 @@ public class GoalHudTests
         GoalHud.Hash(a).Should().Be(GoalHud.Hash(b));
         b.Lines[0].OnClick = "/x";
         GoalHud.Hash(a).Should().NotBe(GoalHud.Hash(b));
+    }
+
+    [Test]
+    public void CompleteGoal_ShowsOneCompleteLine()
+    {
+        var g = new Goal { Id = "g", Title = "G" };
+        var p = Progress(g, 4, 4);
+        p.Complete = true;
+        var d = Build(new GoalList { Goals = { g } }, new() { ["g"] = p }, true);
+        d.Title.Should().Contain("4/4");
+        d.Lines.Should().ContainSingle().Which.Text.Should().Contain("Goal complete");
+        d.Lines[0].OnClick.Should().BeNull();
     }
 }

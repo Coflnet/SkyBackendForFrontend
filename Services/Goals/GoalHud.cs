@@ -32,7 +32,7 @@ public static class GoalHud
 {
     public static InfoDisplayDto BuildDisplay(GoalList list, IReadOnlyDictionary<string, GoalProgress> progressByGoalId,
         bool hasCookie, Func<string, string> nameLookup, Func<string, string> searchNameLookup,
-        IReadOnlyDictionary<string, AuctionOffer> offerByTag)
+        IReadOnlyDictionary<string, AuctionOffer> offerByTag, Func<string, bool> isBazaarItem = null)
     {
         var goals = list?.Goals ?? new();
         if (goals.Count == 0)
@@ -47,8 +47,10 @@ public static class GoalHud
             // auctions can be sniped, so the other purchases only come after them
             var auctionFirst = steps.Any(s => s.Kind == StepKind.Auction);
             foreach (var step in steps)
-                dto.Lines.Add(StepLine(step, hasCookie, nameLookup, searchNameLookup, offerByTag, auctionFirst));
+                dto.Lines.Add(StepLine(step, hasCookie, nameLookup, searchNameLookup, offerByTag, auctionFirst, isBazaarItem));
         }
+        if (focusProgress is { Complete: true })
+            dto.Lines.Add(new ChatPartDto { Text = "§aGoal complete, all steps are done", Hover = "Nothing left to do for this goal" });
         foreach (var other in goals.Where(g => g != focus))
         {
             var p = Get(progressByGoalId, other.Id);
@@ -110,8 +112,18 @@ public static class GoalHud
 
     private const string AuctionFirstHover = "Buy the auction item first, it can sell before you get to it.\n";
 
+    /// <summary>Hover of lines that would need /ah without a booster cookie.</summary>
+    public const string NoCookieAuctionHover = "Without a booster cookie /ah is not available. Talk to the Auction Master or an Auction Agent.";
+    /// <summary>Hover of lines that would need /bz without a booster cookie.</summary>
+    public const string NoCookieBazaarHover = "Without a booster cookie /bz is not available. Talk to a Bazaar NPC in the Hub.";
+    /// <summary>Where to go to use the auction house without a booster cookie.</summary>
+    public const string AtAuctionMaster = " §7at the Auction Master";
+    /// <summary>Where to go to use the bazaar without a booster cookie.</summary>
+    public const string AtBazaar = " §7at the Bazaar";
+
     private static ChatPartDto StepLine(GoalStep step, bool hasCookie, Func<string, string> nameLookup,
-        Func<string, string> searchNameLookup, IReadOnlyDictionary<string, AuctionOffer> offers, bool auctionFirst)
+        Func<string, string> searchNameLookup, IReadOnlyDictionary<string, AuctionOffer> offers, bool auctionFirst,
+        Func<string, bool> isBazaarItem)
     {
         var name = nameLookup(step.ItemTag) ?? step.ItemTag;
         var qty = step.Quantity;
@@ -135,16 +147,20 @@ public static class GoalHud
                 if (offers != null && step.ItemTag != null)
                     offers.TryGetValue(step.ItemTag, out offer);
                 if (offer == null)
-                    return new ChatPartDto { Text = $"§cBuy {qty}x {name} §7(auction)", Hover = "Click to open the auction house", OnClick = "/ah" };
+                    return hasCookie
+                        ? new ChatPartDto { Text = $"§cBuy {qty}x {name} §7(auction)", Hover = "Click to open the auction house", OnClick = "/ah" }
+                        : new ChatPartDto { Text = $"§cBuy {qty}x {name} §7(auction)" + AtAuctionMaster, Hover = NoCookieAuctionHover };
                 var command = offer.ViewCommand();
-                var hover = command != null ? "Click to view the cheapest auction" : "Click to open the auction house";
+                // /viewauction works without a booster cookie, /ah does not
+                var canClick = command != null || hasCookie;
+                var hover = command != null ? "Click to view the cheapest auction" : hasCookie ? "Click to open the auction house" : NoCookieAuctionHover;
                 if (step.UnitPrice is { } planned)
                     hover += $"\nPlanned {ShortPrice(planned)}, cheapest now {ShortPrice(offer.Price)}";
                 return new ChatPartDto
                 {
-                    Text = $"§cBuy {qty}x {name} §7(auction) §f{ShortPrice(offer.Price)}{ProfitNote(step, offer)}",
+                    Text = $"§cBuy {qty}x {name} §7(auction) §f{ShortPrice(offer.Price)}{ProfitNote(step, offer)}" + (canClick ? "" : AtAuctionMaster),
                     Hover = hover,
-                    OnClick = command ?? "/ah"
+                    OnClick = command ?? (hasCookie ? "/ah" : null)
                 };
             case StepKind.Npc:
                 return new ChatPartDto
@@ -157,11 +173,18 @@ public static class GoalHud
             case StepKind.Forge:
                 return new ChatPartDto { Text = $"§aForge {name}", Hover = "Click to warp to the forge", OnClick = "/warp forge" };
             default:
+                var bazaar = isBazaarItem?.Invoke(step.ItemTag) ?? false;
+                if (!hasCookie)
+                    return new ChatPartDto
+                    {
+                        Text = $"§aSell {name}" + (bazaar ? AtBazaar : AtAuctionMaster),
+                        Hover = bazaar ? NoCookieBazaarHover : NoCookieAuctionHover
+                    };
                 return new ChatPartDto
                 {
                     Text = $"§aSell {name}",
-                    Hover = hasCookie ? "Click to open the bazaar" : "Click to open the auction house",
-                    OnClick = hasCookie ? $"/bz {name}" : "/ah"
+                    Hover = bazaar ? "Click to open the bazaar" : "Click to open the auction house",
+                    OnClick = bazaar ? $"/bz {name}" : "/ah"
                 };
         }
     }

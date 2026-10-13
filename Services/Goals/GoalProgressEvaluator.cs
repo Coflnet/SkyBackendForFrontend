@@ -123,6 +123,7 @@ public static class GoalProgressEvaluator
         {
             step.DoneAt = null;
             step.OrderedAt = null;
+            step.Sold = 0;
             foreach (var child in step.Children)
                 Walk(child);
         }

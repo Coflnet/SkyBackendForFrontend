@@ -128,4 +128,24 @@ public class GoalProgressEvaluatorTests
         p.Actionable.Should().HaveCount(GoalProgressEvaluator.MaxActionable);
         p.Actionable.Select(a => a.Id).Should().Equal("auc", "auc2", "b0", "b1", "b2");
     }
+
+    [Test]
+    public void Sell_DoneOnlyByDoneAt()
+    {
+        var root = S("sell", StepKind.Sell, "X", 1, S("craft", StepKind.Craft, "X", 1));
+        root.Children[0].DoneAt = Now;
+        root.OrderedAt = Now;
+        Eval(root).Status["sell"].Should().Be(StepStatus.Ready);
+        root.DoneAt = Now;
+        Eval(root).Status["sell"].Should().Be(StepStatus.Done);
+    }
+
+    [Test]
+    public void Reset_ClearsSellMarker()
+    {
+        var goal = new Goal { Root = S("sell", StepKind.Sell, "X", 1) };
+        goal.Root.OrderedAt = Now;
+        GoalProgressEvaluator.Reset(goal);
+        goal.Root.OrderedAt.Should().BeNull();
+    }
 }
