@@ -349,7 +349,28 @@ public class GoalHudTests
         p.Complete = true;
         var d = Build(new GoalList { Goals = { g } }, new() { ["g"] = p }, true);
         d.Title.Should().Contain("4/4");
-        d.Lines.Should().ContainSingle().Which.Text.Should().Contain("Goal complete");
-        d.Lines[0].OnClick.Should().BeNull();
+        d.Lines.Select(l => l.Text).Should().Equal("§aGoal complete, all steps are done", "§7▸ §eStart this goal again", "§7▸ §cRemove this goal");
+        d.Lines.Select(l => l.OnClick).Should().Equal(null, "/cofl goal reset g", "/cofl goal remove g");
+    }
+
+    [Test]
+    public void CompleteGoal_OtherGoalsFollowTheClickLines()
+    {
+        var g = new Goal { Id = "g", Title = "G" };
+        var other = new Goal { Id = "o", Title = "Other" };
+        var p = Progress(g, 4, 4);
+        p.Complete = true;
+        var d = Build(new GoalList { Goals = { g, other }, FocusId = "g" }, new() { ["g"] = p }, true);
+        d.Lines.Should().HaveCount(4);
+        d.Lines[3].OnClick.Should().Be("/cofl goal focus o");
+    }
+
+    [Test]
+    public void IncompleteGoal_ShowsNoRestartOrRemoveLines()
+    {
+        var g = new Goal { Id = "g", Title = "G" };
+        var step = new GoalStep { Kind = StepKind.Craft, ItemTag = "X", Quantity = 1 };
+        var d = Build(new GoalList { Goals = { g } }, new() { ["g"] = Progress(g, 1, 2, step) }, true);
+        d.Lines.Select(l => l.OnClick).Should().NotContain(c => c.Contains("goal reset") || c.Contains("goal remove"));
     }
 }

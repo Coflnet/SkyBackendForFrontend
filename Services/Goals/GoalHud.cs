@@ -50,7 +50,21 @@ public static class GoalHud
                 dto.Lines.Add(StepLine(step, hasCookie, nameLookup, searchNameLookup, offerByTag, auctionFirst, isBazaarItem));
         }
         if (focusProgress is { Complete: true })
+        {
             dto.Lines.Add(new ChatPartDto { Text = "§aGoal complete, all steps are done", Hover = "Nothing left to do for this goal" });
+            dto.Lines.Add(new ChatPartDto
+            {
+                Text = "§7▸ §eStart this goal again",
+                Hover = "Clears the progress and starts with the first step again",
+                OnClick = $"/cofl goal reset {focus.Id}"
+            });
+            dto.Lines.Add(new ChatPartDto
+            {
+                Text = "§7▸ §cRemove this goal",
+                Hover = "Removes the goal from your list",
+                OnClick = $"/cofl goal remove {focus.Id}"
+            });
+        }
         foreach (var other in goals.Where(g => g != focus))
         {
             var p = Get(progressByGoalId, other.Id);
