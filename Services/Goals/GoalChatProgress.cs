@@ -56,7 +56,7 @@ public static class GoalChatProgress
         foreach (var goal in ordered)
         {
             var step = goal.Root;
-            if (step is not { Kind: StepKind.Sell } || step.DoneAt.HasValue || !step.Children.All(c => c.DoneAt.HasValue))
+            if (goal.BazaarFlip != null || step is not { Kind: StepKind.Sell } || step.DoneAt.HasValue || !step.Children.All(c => c.DoneAt.HasValue))
                 continue;
             var name = Normalize(nameOfTag?.Invoke(step.ItemTag));
             if (name.Length == 0)

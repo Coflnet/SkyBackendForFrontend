@@ -11,6 +11,19 @@ public static class GoalProgressEvaluator
     public static GoalProgress Evaluate(Goal goal, IReadOnlyDictionary<string, long> playerCounts,
         IReadOnlyDictionary<string, long> openBuyOrders, ISet<string> forgingTags, DateTime now)
     {
+        if (goal?.BazaarFlip is { } flip)
+        {
+            var action = BazaarFlipProgress.Next(goal);
+            var stages = new[] { BazaarFlipProgress.Committed(flip, false) > 0, BazaarFlipProgress.Filled(flip, false) >= goal.Quantity,
+                flip.BuyClaimed >= goal.Quantity, BazaarFlipProgress.Committed(flip, true) > 0,
+                BazaarFlipProgress.Filled(flip, true) >= goal.Quantity, flip.SellClaimed >= goal.Quantity };
+            return new GoalProgress { Goal = goal, Total = 6, Done = stages.Count(s => s), Complete = stages[5],
+                Status = new() { [goal.Root.Id] = stages[5] ? StepStatus.Done : StepStatus.Todo },
+                Actionable = action is BazaarFlipAction.Buy or BazaarFlipAction.Sell ? new() { new GoalStep {
+                    Id = goal.Root.Id + (action == BazaarFlipAction.Buy ? "-buy" : "-sell"), Kind = action == BazaarFlipAction.Buy ? StepKind.BuyOrder : StepKind.Sell,
+                    ItemTag = goal.RootItemTag, Quantity = action == BazaarFlipAction.Buy
+                        ? goal.Quantity - BazaarFlipProgress.Committed(flip, false) : flip.BuyClaimed - BazaarFlipProgress.Committed(flip, true) } } : new() };
+        }
         var available = new Dictionary<string, long>(playerCounts ?? new Dictionary<string, long>());
         var progress = new GoalProgress { Goal = goal };
         if (goal?.Root == null)
@@ -119,6 +132,7 @@ public static class GoalProgressEvaluator
 
     public static void Reset(Goal goal)
     {
+        if (goal.BazaarFlip != null) { goal.BazaarFlip = new(); goal.CreatedAt = DateTime.UtcNow; }
         void Walk(GoalStep step)
         {
             step.DoneAt = null;

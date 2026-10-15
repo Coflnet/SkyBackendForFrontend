@@ -22,6 +22,7 @@ public class Goal
     /// <summary>"website" or "mod"</summary>
     public string Source { get; set; }
     public GoalStep Root { get; set; }
+    public BazaarFlipState BazaarFlip { get; set; }
 }
 
 public class GoalStep

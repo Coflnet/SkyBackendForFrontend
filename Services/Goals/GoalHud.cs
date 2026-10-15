@@ -41,7 +41,10 @@ public static class GoalHud
         var dto = new InfoDisplayDto();
         var focusProgress = Get(progressByGoalId, focus.Id);
         dto.Title = $"§6§lGoal: §f{focus.Title} §7{focusProgress?.Done ?? 0}/{focusProgress?.Total ?? 0} steps";
-        if (focusProgress != null)
+        if (focus.BazaarFlip != null)
+            dto.Lines.Add(BazaarFlipProgress.Line(focus, hasCookie, nameLookup(focus.RootItemTag) ?? focus.RootItemTag,
+                searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag));
+        else if (focusProgress != null)
         {
             var steps = MergeSameItem(focusProgress.Actionable);
             // auctions can be sniped, so the other purchases only come after them
