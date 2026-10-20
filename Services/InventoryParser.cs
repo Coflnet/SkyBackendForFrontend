@@ -532,7 +532,12 @@ public class InventoryParser
             else if (type == "long")
                 attributesWithoutEnchantments[attribute.Name] = ((long)attribute.Value["value"][0] << 32) + (int)attribute.Value["value"][1];
             else
-                attributesWithoutEnchantments[attribute.Name] = attribute.Value["value"];
+            {
+                // store the plain value, not the JValue wrapper, so the flattening in NBT
+                // (eg. UnwrapJson for petInfo) sees a string like it does for the plain format
+                var value = attribute.Value["value"];
+                attributesWithoutEnchantments[attribute.Name] = value is JValue jValue ? jValue.Value : value;
+            }
         }
     }
 
