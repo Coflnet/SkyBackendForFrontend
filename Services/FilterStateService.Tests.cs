@@ -31,7 +31,7 @@ public class FilterStateServiceTests
                 await Task.Delay(2);
                 return Tags();
             });
-        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApiApi>().Object, api.Object);
+        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, api.Object);
 
         var tasks = Enumerable.Range(0, workers).Select(_ => Task.Run(async () =>
         {
@@ -55,7 +55,7 @@ public class FilterStateServiceTests
         var api = new Mock<IItemsApi>();
         api.Setup(a => a.ItemsCategoryCategoryItemsGetAsync(ItemCategory.SWORD, 0, default))
             .ReturnsAsync(Tags());
-        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApiApi>().Object, api.Object);
+        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, api.Object);
         DiHandler.OverrideService<FilterStateService, FilterStateService>(service);
         await service.GetItemCategory(ItemCategory.SWORD);
 
@@ -80,7 +80,7 @@ public class FilterStateServiceTests
         var api = new Mock<IItemsApi>();
         api.Setup(a => a.ItemsCategoryCategoryItemsGetAsync(ItemCategory.SWORD, 0, default))
             .Returns(() => Task.FromResult(Interlocked.Increment(ref calls) == 1 ? null : Tags()));
-        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApiApi>().Object, api.Object);
+        var service = new FilterStateService(NullLogger<FilterStateService>.Instance, new Mock<Mayor.Client.Api.IMayorApi>().Object, api.Object);
 
         Assert.ThrowsAsync<Coflnet.Sky.Core.CoflnetException>(() => service.GetItemCategory(ItemCategory.SWORD));
         Assert.That(service.State.itemCategories.ContainsKey(ItemCategory.SWORD), Is.False);
