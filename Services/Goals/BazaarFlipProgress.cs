@@ -98,7 +98,10 @@ public static class BazaarFlipProgress
             var closedAt = stored.ClosedAt == null || order.ClosedAt > stored.ClosedAt ? order.ClosedAt : stored.ClosedAt;
             changed |= stored.Amount != amount || stored.Filled != filled || stored.Claimed != claimed
                 || stored.Active != active || stored.ClosedAt != closedAt;
-            if (!order.IsSell && goal.Plan is { Deadline: null } plan)
+            // Admission rule: only the buy placed for the planned quantity anchors the deadline. Stored orders carry no price,
+            // so the one-tick price check cannot be applied here and the quantity check alone decides (0 = legacy plan, unknown).
+            if (!order.IsSell && goal.Plan is { Deadline: null } plan
+                && (plan.OriginalQuantity == 0 || order.Amount == plan.OriginalQuantity))
             {
                 plan.Deadline = order.CreatedAt.AddHours(plan.HorizonHours);
                 changed = true;

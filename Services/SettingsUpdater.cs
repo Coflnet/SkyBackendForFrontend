@@ -169,7 +169,18 @@ namespace Coflnet.Sky.Commands.Shared
                     throw new CoflnetException("invalid_horizon", "The investing horizon has to be between 1 and 48 hours");
                 if (negative && doc.RealName == nameof(ModSettings.BazaarPlanBudget))
                     throw new CoflnetException("invalid_budget", "The bazaar budget can't be negative, use 0 for two thirds of your purse");
+                // Convert.ChangeType rounds doubles, so 0.4 would silently become 0; the horizon has to be a whole number
+                if (doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours)
+                    && double.TryParse(value?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsedHorizon)
+                    && parsedHorizon != Math.Floor(parsedHorizon))
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be a whole number between 1 and 48 hours");
+                var previousMode = mod.BazaarMode;
                 var updated = UpdateValueOnObject(value, doc.RealName, mod);
+                if (doc.RealName == nameof(ModSettings.BazaarMode) && !Enum.IsDefined(typeof(BazaarPlanMode), mod.BazaarMode))
+                {
+                    mod.BazaarMode = previousMode;
+                    throw new CoflnetException("invalid_mode", "Allowed: Active, Investing, Both");
+                }
                 if (doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours)
                     && mod.BazaarInvestingHorizonHours != 0 && (mod.BazaarInvestingHorizonHours < 1 || mod.BazaarInvestingHorizonHours > 48))
                 {
