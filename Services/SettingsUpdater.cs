@@ -160,7 +160,28 @@ namespace Coflnet.Sky.Commands.Shared
                         throw new CoflnetException("invalid_format", "Format update rejected. \nMake sure any squirly brackets are closed again or prefixed with another bracket to escape it, eg {{ will result in {.");
                     }
                 }
-                return UpdateValueOnObject(value, doc.RealName, con.ModSettings);
+                var mod = con.ModSettings;
+                var previousHorizon = mod.BazaarInvestingHorizonHours;
+                var previousBudget = mod.BazaarPlanBudget;
+                // NumberParser drops the sign, so negative input has to be rejected before parsing
+                var negative = value?.TrimStart().StartsWith('-') == true;
+                if (negative && doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours))
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be between 1 and 48 hours");
+                if (negative && doc.RealName == nameof(ModSettings.BazaarPlanBudget))
+                    throw new CoflnetException("invalid_budget", "The bazaar budget can't be negative, use 0 for two thirds of your purse");
+                var updated = UpdateValueOnObject(value, doc.RealName, mod);
+                if (doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours)
+                    && mod.BazaarInvestingHorizonHours != 0 && (mod.BazaarInvestingHorizonHours < 1 || mod.BazaarInvestingHorizonHours > 48))
+                {
+                    mod.BazaarInvestingHorizonHours = previousHorizon;
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be between 1 and 48 hours");
+                }
+                if (doc.RealName == nameof(ModSettings.BazaarPlanBudget) && mod.BazaarPlanBudget < 0)
+                {
+                    mod.BazaarPlanBudget = previousBudget;
+                    throw new CoflnetException("invalid_budget", "The bazaar budget can't be negative, use 0 for two thirds of your purse");
+                }
+                return updated;
             }
             else
             {

@@ -41,6 +41,8 @@ public static class GoalHud
         var dto = new InfoDisplayDto();
         var focusProgress = Get(progressByGoalId, focus.Id);
         dto.Title = $"§6§lGoal: §f{focus.Title} §7{focusProgress?.Done ?? 0}/{focusProgress?.Total ?? 0} steps";
+        if (focus.Plan is { } focusPlan)
+            dto.Title += $" §7[{focusPlan.Mode}{(focusPlan.Deadline is { } until ? $", until {until:HH:mm} UTC" : "")}]";
         if (focus.BazaarFlip != null)
             dto.Lines.Add(BazaarFlipProgress.Line(focus, hasCookie, nameLookup(focus.RootItemTag) ?? focus.RootItemTag,
                 searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag));

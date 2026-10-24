@@ -21,7 +21,8 @@ public static class GoalProgressEvaluator
                 Status = new() { [goal.Root.Id] = stages[5] ? StepStatus.Done : StepStatus.Todo },
                 Actionable = action is BazaarFlipAction.Buy or BazaarFlipAction.Sell ? new() { new GoalStep {
                     Id = goal.Root.Id + (action == BazaarFlipAction.Buy ? "-buy" : "-sell"), Kind = action == BazaarFlipAction.Buy ? StepKind.BuyOrder : StepKind.Sell,
-                    ItemTag = goal.RootItemTag, Quantity = action == BazaarFlipAction.Buy
+                    ItemTag = goal.RootItemTag,
+                    UnitPrice = action == BazaarFlipAction.Buy ? goal.Plan?.EntryPrice : goal.Plan?.ExitPrice, Quantity = action == BazaarFlipAction.Buy
                         ? goal.Quantity - BazaarFlipProgress.Committed(flip, false) : flip.BuyClaimed - BazaarFlipProgress.Committed(flip, true) } } : new() };
         }
         var available = new Dictionary<string, long>(playerCounts ?? new Dictionary<string, long>());

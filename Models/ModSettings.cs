@@ -128,5 +128,14 @@ namespace Coflnet.Sky.Commands.Shared
         [DataMember(Name = "hotkeys")]
         [SettingsDoc("Custom hotkeys for various actions")]
         public Dictionary<string,string> Hotkeys = new Dictionary<string, string>();
+        [DataMember(Name = "bazaarMode")]
+        [SettingsDoc("Bazaar plan mode: Active (fast flips), Investing (hold up to the horizon) or Both (one shared budget)", "bzmode")]
+        public BazaarPlanMode BazaarMode;
+        [DataMember(Name = "bazaarHorizonHours")]
+        [SettingsDoc("Investing horizon in hours, 1-48. 0 uses the default of 24", "bzhours")]
+        public int BazaarInvestingHorizonHours;
+        [DataMember(Name = "bazaarBudget")]
+        [SettingsDoc("Max coins to commit to bazaar plans across all modes, 0 = two thirds of your purse", "bzbudget")]
+        public long BazaarPlanBudget;
     }
 }

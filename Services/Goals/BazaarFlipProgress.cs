@@ -98,6 +98,11 @@ public static class BazaarFlipProgress
             var closedAt = stored.ClosedAt == null || order.ClosedAt > stored.ClosedAt ? order.ClosedAt : stored.ClosedAt;
             changed |= stored.Amount != amount || stored.Filled != filled || stored.Claimed != claimed
                 || stored.Active != active || stored.ClosedAt != closedAt;
+            if (!order.IsSell && goal.Plan is { Deadline: null } plan)
+            {
+                plan.Deadline = order.CreatedAt.AddHours(plan.HorizonHours);
+                changed = true;
+            }
             stored.Amount = amount;
             stored.Filled = filled;
             stored.Claimed = claimed;
@@ -108,6 +113,9 @@ public static class BazaarFlipProgress
     }
 
     public static ChatPartDto Line(Goal goal, bool hasCookie, string name, string search)
+        => Line(goal, hasCookie, name, search, DateTime.UtcNow);
+
+    public static ChatPartDto Line(Goal goal, bool hasCookie, string name, string search, DateTime now)
     {
         var s = goal.BazaarFlip;
         var action = Next(goal);
@@ -122,16 +130,51 @@ public static class BazaarFlipProgress
             BazaarFlipAction.ClaimCoins => $"§aClaim coins for {Filled(s, true) - s.SellClaimed:N0}x {name}",
             _ => $"§aBazaar flip complete: {goal.Quantity:N0}x {name} claimed"
         };
+        var plan = goal.Plan;
+        if (plan != null)
+        {
+            if (action == BazaarFlipAction.Buy)
+                text += $" §7@ §6{GoalHud.ShortPrice(plan.EntryPrice)}";
+            else if (action == BazaarFlipAction.Sell)
+                text += $" §7@ §6{GoalHud.ShortPrice(plan.ExitPrice)}";
+            if (plan.Deadline is { } due && due < now
+                && action is BazaarFlipAction.WaitBuy or BazaarFlipAction.WaitSell or BazaarFlipAction.Sell)
+                text = "§cdeadline passed · " + text;
+        }
         var command = action switch {
             BazaarFlipAction.Buy => $"/cofl bzorder {(hasCookie ? "" : "search ")}{buyAmount} {search}",
             BazaarFlipAction.Sell => hasCookie ? $"/bz {search}" : $"/cofl bazaarsearch {search}",
             BazaarFlipAction.Done => null,
             _ => hasCookie ? "/managebazaarorders" : null
         };
-        return new ChatPartDto { Text = text, OnClick = command,
-            Hover = action == BazaarFlipAction.Buy ? "Choose Create Buy Order and review the current price before confirming." + (hasCookie ? "" : " Open a Bazaar NPC first.")
+        var hover = BaseHover(action, hasCookie, sellAmount);
+        if (plan != null)
+            hover += PlanHover(plan);
+        return new ChatPartDto { Text = text, OnClick = command, Hover = hover };
+    }
+
+    private static string PlanHover(BazaarPlanInfo plan)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"\nMode: {plan.Mode}");
+        sb.Append($"\nnet est. +{GoalHud.ShortPrice(plan.EstimatedNetProfit)} after {(plan.SellTaxRate * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}% tax ({plan.TaxSource})");
+        sb.Append(plan.Deadline is { } d ? $"\ndeadline {d:yyyy-MM-dd HH:mm} UTC" : "\ndeadline starts with your first buy");
+        sb.Append('\n').Append(plan.ConfidenceStatus switch
+        {
+            "Qualified" => $">95% chance to complete the full buy+sell cycle by the deadline (lower bound {(plan.LowerBound is { } lb ? (lb * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%" : "unknown")})",
+            "InsufficientEvidence" => "confidence unknown: insufficient evidence",
+            "SimulationOnly" => "simulation-only estimate, not a guarantee",
+            "Stale" or "StaleInputs" => "stale quote",
+            _ => "no probability claim"
+        });
+        return sb.ToString();
+    }
+
+    private static string BaseHover(BazaarFlipAction action, bool hasCookie, long sellAmount)
+    {
+        return action == BazaarFlipAction.Buy ? "Choose Create Buy Order and review the current price before confirming." + (hasCookie ? "" : " Open a Bazaar NPC first.")
                 : action == BazaarFlipAction.Sell ? $"Choose Create Sell Offer for {sellAmount:N0} items and review the current price. Partial claims can be sold while the rest fills." + (hasCookie ? "" : " Open a Bazaar NPC first.")
                 : action == BazaarFlipAction.Done ? "The sell proceeds were claimed; listing or filling alone does not complete this flip."
-                : "Open Your Bazaar Orders to inspect or claim this item. Cancelling unfilled quantities allows replacement orders." + (hasCookie ? "" : " Talk to a Bazaar NPC first.") };
+                : "Open Your Bazaar Orders to inspect or claim this item. Cancelling unfilled quantities allows replacement orders." + (hasCookie ? "" : " Talk to a Bazaar NPC first.");
     }
 }
