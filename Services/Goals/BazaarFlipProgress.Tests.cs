@@ -283,4 +283,17 @@ public class BazaarFlipProgressTests
         Assert.That(BazaarFlipProgress.Line(g,false,"Coal","Coal").OnClick,Is.Null);
         Assert.That(BazaarFlipProgress.Line(g,false,"Coal","Coal").Hover,Does.Contain("Bazaar NPC"));
     }
+
+    [TestCase(0.9, "simulation", ">90% chance", true)]
+    [TestCase(0.95, "prospective", ">95% chance", false)]
+    [TestCase(null, null, ">95% chance", false)]
+    public void QualifiedHoverUsesThresholdAndEvidenceSource(double? threshold, string source, string expected, bool simulated)
+    {
+        var g = NewGoal();
+        g.Plan = new BazaarPlanInfo { Mode = "Investing", ConfidenceStatus = "Qualified", LowerBound = 0.93, QualifyThreshold = threshold, EvidenceSource = source };
+        var hover = BazaarFlipProgress.Line(g, false, "Coal", "Coal").Hover;
+        Assert.That(hover, Does.Contain(expected).And.Contain("lower bound 93%"));
+        const string note = "simulated from market history, not yet confirmed by tracked trades";
+        if (simulated) Assert.That(hover, Does.Contain(note)); else Assert.That(hover, Does.Not.Contain(note));
+    }
 }

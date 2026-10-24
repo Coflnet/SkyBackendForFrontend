@@ -164,7 +164,8 @@ public static class BazaarFlipProgress
         sb.Append(plan.Deadline is { } d ? $"\ndeadline {d:yyyy-MM-dd HH:mm} UTC" : "\ndeadline starts with your first buy");
         sb.Append('\n').Append(plan.ConfidenceStatus switch
         {
-            "Qualified" => $">95% chance to complete the full buy+sell cycle by the deadline (lower bound {(plan.LowerBound is { } lb ? (lb * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%" : "unknown")})",
+            "Qualified" => $">{QualifyPercent(plan.QualifyThreshold)}% chance to complete the full buy+sell cycle by the deadline (lower bound {(plan.LowerBound is { } lb ? (lb * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%" : "unknown")})"
+                + (plan.EvidenceSource == "simulation" ? " (simulated from market history, not yet confirmed by tracked trades)" : ""),
             "InsufficientEvidence" => "confidence unknown: insufficient evidence",
             "SimulationOnly" => "simulation-only estimate, not a guarantee",
             "Stale" or "StaleInputs" => "stale quote",
@@ -172,6 +173,9 @@ public static class BazaarFlipProgress
         });
         return sb.ToString();
     }
+
+    private static string QualifyPercent(double? threshold)
+        => ((threshold ?? 0.95) * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string BaseHover(BazaarFlipAction action, bool hasCookie, long sellAmount)
     {

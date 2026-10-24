@@ -55,6 +55,10 @@ public class BazaarPlanInfo
     public double? Probability { get; set; }
     /// <summary>Lower confidence bound of <see cref="Probability"/> as a fraction between 0 and 1; null when unknown.</summary>
     public double? LowerBound { get; set; }
+    /// <summary>Probability bar the engine used to qualify the order (fraction 0..1); null on plans stored before it was reported.</summary>
+    public double? QualifyThreshold { get; set; }
+    /// <summary>"simulation" or "prospective"; null when unknown.</summary>
+    public string EvidenceSource { get; set; }
     public List<string> ReasonCodes { get; set; }
 }
 
