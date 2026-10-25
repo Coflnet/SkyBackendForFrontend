@@ -19,6 +19,15 @@ namespace Coflnet.Sky.Commands.Shared
         private IItemsApi itemClient;
         private FilterEngine FilterEngine;
         private HashSet<string> bazaarItems;
+        private readonly ICraftCostProvider craftCosts;
+
+        /// <summary>
+        /// Auction prices are capped at this multiple of the craft cost. A single coin-transfer sale
+        /// (6 Paper "sold" for 171M) once set the price of Paper to 28.6M, real prices are never near this.
+        /// </summary>
+        public const int CraftCostCapFactor = 10;
+        /// <summary>Fewer sales than this in the short window make the statistics unreliable</summary>
+        public const int MinSalesInShortWindow = 3;
 
         /// <summary>
         /// Creates a new 
@@ -27,8 +36,10 @@ namespace Coflnet.Sky.Commands.Shared
         /// <param name="bazaarClient"></param>
         /// <param name="itemClient"></param>
         /// <param name="filterEngine"></param>
-        public PricesService(HypixelContext context, BazaarApi bazaarClient, IItemsApi itemClient, FilterEngine filterEngine)
+        /// <param name="craftCosts">optional, when null auction prices are not capped</param>
+        public PricesService(HypixelContext context, BazaarApi bazaarClient, IItemsApi itemClient, FilterEngine filterEngine, ICraftCostProvider craftCosts = null)
         {
+            this.craftCosts = craftCosts;
             this.context = context;
             this.bazaarClient = bazaarClient;
             this.itemClient = itemClient;
@@ -56,7 +67,7 @@ namespace Coflnet.Sky.Commands.Shared
         /// <returns></returns>
         public async Task<PriceSumary> GetSumary(string itemTag, Dictionary<string, string> filter)
         {
-            int id = GetItemId(itemTag);
+            int id = ResolveItemId(itemTag);
             filter ??= [];
 
             var days = 2;
@@ -80,13 +91,16 @@ namespace Coflnet.Sky.Commands.Shared
                     Volume = (long)val.Select(p => p.SellVolume + p.BuyVolume).First() / 7
                 };
             }
-            var minTime = DateTime.Now.Subtract(TimeSpan.FromDays(days));
-            var mainSelect = context.Auctions.Where(a => a.ItemId == id && a.End < DateTime.Now && a.End > minTime && a.HighestBidAmount > 0);
             filter["ItemId"] = id.ToString();
-            var auctions = (await FilterEngine.AddFilters(mainSelect, filter)
-                            .Select(a => a.HighestBidAmount / a.Count).ToListAsync()).OrderByDescending(p => p).ToList();
+            var auctions = await LoadAuctionSalePrices(id, filter, days);
+            if (auctions.Count < MinSalesInShortWindow)
+            {
+                // thin data (a single odd sale would be the whole statistic), look further back
+                days = 14;
+                auctions = await LoadAuctionSalePrices(id, filter, days);
+            }
             var mode = auctions.GroupBy(a => a).OrderByDescending(a => a.Count()).FirstOrDefault();
-            return new PriceSumary()
+            var sumary = new PriceSumary()
             {
                 Max = auctions.FirstOrDefault(),
                 Med = auctions.Count > 0 ? auctions.Skip(auctions.Count() / 2).FirstOrDefault() : 0,
@@ -95,6 +109,48 @@ namespace Coflnet.Sky.Commands.Shared
                 Mode = mode?.Key ?? 0,
                 Volume = auctions.Count > 0 ? ((double)auctions.Count()) / days : 0
             };
+            var cap = await GetCraftCostCap(itemTag, 1);
+            if (cap is { } limit)
+            {
+                sumary.Max = Math.Min(sumary.Max, (long)limit);
+                sumary.Med = Math.Min(sumary.Med, (long)limit);
+                sumary.Min = Math.Min(sumary.Min, (long)limit);
+                sumary.Mean = Math.Min(sumary.Mean, limit);
+                sumary.Mode = Math.Min(sumary.Mode, (long)limit);
+            }
+            return sumary;
+        }
+
+        /// <summary>
+        /// Per unit prices (highest first) of auctions that ended with a bid in the last <paramref name="days"/> days
+        /// </summary>
+        protected virtual async Task<List<long>> LoadAuctionSalePrices(int itemId, Dictionary<string, string> filter, int days)
+        {
+            var minTime = DateTime.Now.Subtract(TimeSpan.FromDays(days));
+            var mainSelect = context.Auctions.Where(a => a.ItemId == itemId && a.End < DateTime.Now && a.End > minTime && a.HighestBidAmount > 0);
+            return (await FilterEngine.AddFilters(mainSelect, filter)
+                            .Select(a => a.HighestBidAmount / a.Count).ToListAsync()).OrderByDescending(p => p).ToList();
+        }
+
+        /// <summary>
+        /// Maximum plausible auction price for <paramref name="count"/> items: <see cref="CraftCostCapFactor"/> times the craft cost,
+        /// null when no (valid) craft cost is known or the crafts service is unavailable.
+        /// </summary>
+        private async Task<double?> GetCraftCostCap(string itemTag, int count)
+        {
+            if (craftCosts == null)
+                return null;
+            try
+            {
+                var cost = await craftCosts.GetUnitCraftCost(itemTag);
+                if (cost is > 0)
+                    return cost.Value * CraftCostCapFactor * Math.Max(1, count);
+            }
+            catch (Exception)
+            {
+                // price lookups must never fail because the optional cap could not be determined
+            }
+            return null;
         }
 
         public async Task<(long cost, string uuid, long slbin)> GetLowestBinData(string itemTag, Dictionary<string, string> filters = null)
@@ -142,6 +198,9 @@ namespace Coflnet.Sky.Commands.Shared
             }
             return sumary;
         }
+
+        /// <summary>Resolves the numeric item id, overridable for tests</summary>
+        protected virtual int ResolveItemId(string itemTag, bool forceget = true) => GetItemId(itemTag, forceget);
 
         private static int GetItemId(string itemTag, bool forceget = true)
         {
@@ -960,7 +1019,7 @@ namespace Coflnet.Sky.Commands.Shared
         /// <returns></returns>
         public async Task<CurrentPrice> GetCurrentPrice(string itemTag, int count = 1, TimeSpan? minListedFor = null)
         {
-            int id = GetItemId(itemTag, false);
+            int id = ResolveItemId(itemTag, false);
             if (id == 0)
                 return new CurrentPrice() { Available = -1 };
             var bazaarItems = await GetBazaarItems();
@@ -987,13 +1046,7 @@ namespace Coflnet.Sky.Commands.Shared
             else
             {
                 var filter = new Dictionary<string, string>();
-                var lowestBins = await context.Auctions
-                        .Where(a => a.ItemId == id)
-                        .WhereActiveBin(DateTime.Now, minListedFor)
-                        .OrderBy(a => a.StartingBid)
-                        .Take(count <= 1 ? 1 : count)
-                        .AsNoTracking()
-                        .ToListAsync();
+                var lowestBins = await LoadLowestBins(id, count, minListedFor);
                 if (lowestBins == null || lowestBins.Count == 0)
                 {
                     var sumary = await GetSumary(itemTag, filter);
@@ -1009,8 +1062,28 @@ namespace Coflnet.Sky.Commands.Shared
                 var sell = 0L;
                 if (lowestBins.Count > 0)
                     sell = lowestBins.First().StartingBid / lowestBins.First().Count * count;
-                return new CurrentPrice() { Buy = cost, Sell = sell * 0.98, Available = lowestBins.Count, IsAh = true};
+                var binCap = await GetCraftCostCap(itemTag, count);
+                double buy = cost;
+                double sellPrice = sell * 0.98;
+                if (binCap is { } limit)
+                {
+                    buy = Math.Min(buy, limit);
+                    sellPrice = Math.Min(sellPrice, limit);
+                }
+                return new CurrentPrice() { Buy = buy, Sell = sellPrice, Available = lowestBins.Count, IsAh = true};
             }
+        }
+
+        /// <summary>Cheapest active BIN auctions of an item</summary>
+        protected virtual Task<List<SaveAuction>> LoadLowestBins(int itemId, int count, TimeSpan? minListedFor)
+        {
+            return context.Auctions
+                    .Where(a => a.ItemId == itemId)
+                    .WhereActiveBin(DateTime.Now, minListedFor)
+                    .OrderBy(a => a.StartingBid)
+                    .Take(count <= 1 ? 1 : count)
+                    .AsNoTracking()
+                    .ToListAsync();
         }
 
         public double GetBazaarCostForCount(List<Bazaar.Client.Model.Order> orders, int count)

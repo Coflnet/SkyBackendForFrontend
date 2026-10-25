@@ -123,6 +123,7 @@ namespace Coflnet.Sky.Commands.Shared
                 provider.GetRequiredService<IConfiguration>()["CRAFTS_BASE_URL"];
 
             services.AddSingleton<ICraftsApi>(context => new CraftsApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<ICraftCostProvider>(context => new CraftCostProvider(context.GetRequiredService<ICraftsApi>()));
             services.AddSingleton<INpcApi>(context => new NpcApi(GetCraftsBaseUrl(context)));
             services.AddSingleton<IDropApi>(context => new DropApi(GetCraftsBaseUrl(context)));
             services.AddSingleton<IKatApi>(context => new KatApi(GetCraftsBaseUrl(context)));
