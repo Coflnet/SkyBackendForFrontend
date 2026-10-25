@@ -241,7 +241,6 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<McAccountService>();
             services.AddSingleton<MuseumService>();
             services.AddSingleton<SearchService>();
-            services.AddSingleton<ActiveAuctionFilterService>();
             services.AddHostedService<ServicePorter>();
             services.AddSingleton<NBT>();
             services.AddSingleton<INBT>(di=> di.GetRequiredService<NBT>());

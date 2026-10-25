@@ -54,6 +54,12 @@ public static class ItemSearchResults
 /// <param name="TimedOut">true if the time budget was hit, the answer is incomplete and must not be cached</param>
 public record FilterSearchResult(List<SearchResultItem> Results, bool TimedOut = false);
 
+/// <summary>An item found in free text</summary>
+/// <param name="Tag">item tag</param>
+/// <param name="Name">display name</param>
+/// <param name="Consumed">how many words were used</param>
+public record ResolvedItem(string Tag, string Name, int Consumed);
+
 
 /// <summary>
 /// Resolves search phrases like "hyperion sharp 7" to an item plus filters
@@ -151,11 +157,46 @@ public class ItemFilterSearchService : IDisposable
         }
     }
 
-    private async Task<Resolved> ResolveItem(string[] words, CancellationToken ct)
+    /// <summary>
+    /// Resolves an item from the start of the (normalized) words, the item may use all of them.
+    /// </summary>
+    public virtual async Task<ResolvedItem> ResolveItemAsync(string[] words, CancellationToken ct)
+    {
+        var r = await ResolveItem(words, ct, true);
+        return r == null ? null : new ResolvedItem(r.Tag, r.Name, r.Consumed);
+    }
+
+    /// <summary>
+    /// Item with exactly this normalized name, null if there is none
+    /// </summary>
+    public virtual async Task<ResolvedItem> TryExactItemAsync(string normalizedPhrase, CancellationToken ct)
     {
         var list = await GetNames(ct);
+        var entry = list?.Exact.GetValueOrDefault(normalizedPhrase);
+        return entry == null ? null : new ResolvedItem(entry.Tag, entry.Name, normalizedPhrase.Split(' ').Length);
+    }
+
+    /// <summary>
+    /// Tag to display name of all known items (from the cached name list)
+    /// </summary>
+    internal virtual async Task<IReadOnlyDictionary<string, string>> GetTagNamesAsync(CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        var result = new Dictionary<string, string>();
         if (list != null)
-            for (var k = words.Length - 1; k >= 1; k--)
+            foreach (var e in list.Entries)
+                result.TryAdd(e.Tag, e.Name);
+        return result;
+    }
+
+    private Task<Resolved> ResolveItem(string[] words, CancellationToken ct) => ResolveItem(words, ct, false);
+
+    private async Task<Resolved> ResolveItem(string[] words, CancellationToken ct, bool allowAllWords)
+    {
+        var extra = allowAllWords ? 1 : 0;
+        var list = await GetNames(ct);
+        if (list != null)
+            for (var k = words.Length - 1 + extra; k >= 1; k--)
             {
                 var candidate = string.Join(' ', words.Take(k));
                 var entry = list.Exact.GetValueOrDefault(candidate);
@@ -171,7 +212,7 @@ public class ItemFilterSearchService : IDisposable
                 return new Resolved(entry.Tag, entry.Name, details?.Flags ?? ItemFlags.AUCTION, ItemSearchResults.FromItemTier(details?.Tier), k);
             }
         // aliases and abbreviations (aote) only exist in the SkyItems search
-        var lookups = await Task.WhenAll(Enumerable.Range(1, words.Length - 1)
+        var lookups = await Task.WhenAll(Enumerable.Range(1, words.Length - 1 + extra)
             .Select(k => SearchSafe(string.Join(' ', words.Take(k)), ct)));
         for (var k = lookups.Length; k >= 1; k--)
         {
