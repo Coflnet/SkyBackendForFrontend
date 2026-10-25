@@ -41,6 +41,7 @@ public class ActiveSearchQueryResolver
         string[] tags = Array.Empty<string>();
         string armorSet = null;
         string label = null;
+        string nameContainsPhrase = null;
         var consumed = 0;
 
         for (var k = words.Length; k >= 1 && consumed == 0; k--)
@@ -53,12 +54,29 @@ public class ActiveSearchQueryResolver
                 label = exact.Name;
                 consumed = k;
             }
-            else if (armorSets.TryMatch(lookup.Take(k).ToArray(), 0, out var setKey, out var setTags, out var used) && used == k)
+            else if (armorSets.TryMatchPhrase(lookup.Take(k).ToArray(), out var setKey, out var setTags))
             {
                 tags = setTags;
                 armorSet = setKey;
                 label = armorSets.GetName(setKey) + " set";
                 consumed = k;
+            }
+            else
+            {
+                var matches = await itemSearch.FindNameMatchesAsync(phrase, ct);
+                if (matches?.Single != null)
+                {
+                    tags = new[] { matches.Single.Tag };
+                    label = matches.Single.Name;
+                    consumed = k;
+                }
+                else if (matches != null && matches.Contains > 0)
+                {
+                    // ambiguous: span every item with this text in its name
+                    nameContainsPhrase = phrase;
+                    label = $"Name contains '{phrase}'";
+                    consumed = k;
+                }
             }
         }
         if (consumed == 0 && !FirstWordIsFilter(words))
@@ -77,8 +95,9 @@ public class ActiveSearchQueryResolver
         }
 
         var parsed = parser.Parse(words.Skip(consumed));
-        var nameContains = parsed.Unmatched.Length == 0 ? null : string.Join(' ', parsed.Unmatched);
-        var description = string.Join(", ", new[] { label, parsed.Description, nameContains == null ? null : $"\"{nameContains}\"" }
+        var unmatched = parsed.Unmatched.Length == 0 ? null : string.Join(' ', parsed.Unmatched);
+        var nameContains = nameContainsPhrase == null ? unmatched : unmatched == null ? nameContainsPhrase : nameContainsPhrase + " " + unmatched;
+        var description = string.Join(", ", new[] { label, parsed.Description, unmatched == null ? null : $"\"{unmatched}\"" }
             .Where(s => !string.IsNullOrEmpty(s)));
         return new ResolvedActiveQuery(tags, armorSet, parsed.Filters, nameContains, description);
     }

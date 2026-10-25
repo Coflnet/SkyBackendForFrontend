@@ -57,6 +57,9 @@ public class ActiveAuctionPreview
     public DateTime End { get; set; }
     public int Count { get; set; }
     public string AuctioneerId { get; set; }
+    /// <summary>Display name of the seller, null if unknown</summary>
+    [JsonProperty("playerName")]
+    public string PlayerName { get; set; }
     /// <summary>The attributes that matched the filters, eg sharpness=7 or color=FF0000</summary>
     public Dictionary<string, string> Highlights { get; set; } = new();
 }

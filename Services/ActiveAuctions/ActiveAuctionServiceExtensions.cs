@@ -19,6 +19,7 @@ public static class ActiveAuctionServiceExtensions
         services.AddHostedService(di => di.GetRequiredService<ActiveAuctionReplica>());
         services.AddSingleton<ArmorSetResolver>();
         services.AddSingleton<ActiveSearchQueryResolver>();
+        services.AddSingleton<IActiveAuctionNameSource, PlayerNameApiNameSource>();
         services.AddSingleton<ActiveAuctionQueryService>();
         return services;
     }

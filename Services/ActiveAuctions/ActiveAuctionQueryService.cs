@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Coflnet.Sky.Core;
 using Coflnet.Sky.Filter;
 using Coflnet.Sky.Items.Client.Model;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Prometheus;
 
 namespace Coflnet.Sky.Commands.Shared;
@@ -35,8 +37,17 @@ public class ActiveAuctionQueryService
     private readonly Dictionary<string, LinkedListNode<(string Key, Func<SaveAuction, bool> Matcher)>> matchers = new();
     private readonly LinkedList<(string Key, Func<SaveAuction, bool> Matcher)> matcherOrder = new();
 
-    public ActiveAuctionQueryService(ActiveAuctionReplica replica, FilterEngine filterEngine, FilterStateService filterState, ArmorSetResolver armorSets)
+    private readonly IActiveAuctionNameSource nameSource;
+    private readonly ILogger<ActiveAuctionQueryService> logger;
+    private readonly MemoryCache nameCache = new(new MemoryCacheOptions { SizeLimit = 50_000 });
+    private static readonly TimeSpan NameLifetime = TimeSpan.FromMinutes(10);
+    private const int MaxNameBatch = 100;
+
+    public ActiveAuctionQueryService(ActiveAuctionReplica replica, FilterEngine filterEngine, FilterStateService filterState, ArmorSetResolver armorSets,
+        IActiveAuctionNameSource nameSource = null, ILogger<ActiveAuctionQueryService> logger = null)
     {
+        this.nameSource = nameSource;
+        this.logger = logger;
         this.replica = replica;
         this.filterEngine = filterEngine;
         this.filterState = filterState;
@@ -109,7 +120,50 @@ public class ActiveAuctionQueryService
         var filters = CleanFilters(q.Filters);
         var matcher = GetMatcher(filters);
         var snapshot = replica.Set.GetFreshSnapshot();
-        return await Task.Run(() => ActiveAuctionQueryEngine.Execute(snapshot, q, tags, filters, matcher), ct);
+        var result = await Task.Run(() => ActiveAuctionQueryEngine.Execute(snapshot, q, tags, filters, matcher), ct);
+        await FillPlayerNamesAsync(result?.Items);
+        return result;
+    }
+
+    /// <summary>
+    /// Fills <see cref="ActiveAuctionPreview.PlayerName"/> with one batch lookup for the distinct sellers. Never throws.
+    /// </summary>
+    internal async Task FillPlayerNamesAsync(List<ActiveAuctionPreview> items)
+    {
+        if (nameSource == null || items == null || items.Count == 0)
+            return;
+        try
+        {
+            var ids = items.Select(i => i.AuctioneerId).Where(i => !string.IsNullOrEmpty(i)).Distinct().Take(MaxNameBatch).ToList();
+            var names = new Dictionary<string, string>();
+            var missing = new List<string>();
+            foreach (var id in ids)
+            {
+                if (nameCache.TryGetValue(id, out string cached))
+                    names[id] = cached;
+                else
+                    missing.Add(id);
+            }
+            if (missing.Count > 0)
+            {
+                var resolved = await nameSource.GetNamesAsync(missing);
+                foreach (var id in missing)
+                {
+                    if (resolved == null || !resolved.TryGetValue(id, out var name) || string.IsNullOrEmpty(name))
+                        continue;
+                    name = name.Trim('"');
+                    names[id] = name;
+                    nameCache.Set(id, name, new MemoryCacheEntryOptions { Size = 1, AbsoluteExpirationRelativeToNow = NameLifetime });
+                }
+            }
+            foreach (var item in items)
+                if (item.AuctioneerId != null && names.TryGetValue(item.AuctioneerId, out var n))
+                    item.PlayerName = n;
+        }
+        catch (Exception e)
+        {
+            logger?.LogDebug(e, "Could not resolve seller names for explorer page");
+        }
     }
 
     internal Func<SaveAuction, bool> GetMatcher(Dictionary<string, string> filters)

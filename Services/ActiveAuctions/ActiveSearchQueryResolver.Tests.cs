@@ -18,8 +18,16 @@ public class ActiveSearchQueryResolverTests
     private ActiveSearchQueryResolver resolver;
     private ArmorSetResolver armorSets;
 
+    private static readonly string[] Lapis =
+        { "LAPIS_ARMOR_HELMET", "LAPIS_ARMOR_CHESTPLATE", "LAPIS_ARMOR_LEGGINGS", "LAPIS_ARMOR_BOOTS" };
+
     [SetUp]
     public async Task Setup()
+    {
+        (resolver, armorSets) = await Build(true);
+    }
+
+    private static async Task<(ActiveSearchQueryResolver, ArmorSetResolver)> Build(bool withSets)
     {
         var parser = new FilterQueryParser(new FilterEngine(new Mock<INBT>().Object));
         var names = new Dictionary<string, string>
@@ -29,9 +37,18 @@ public class ActiveSearchQueryResolverTests
             ["FINAL_DESTINATION_LEGGINGS"] = "Final Destination Leggings",
             ["FINAL_DESTINATION_BOOTS"] = "Final Destination Boots",
             ["HYPERION"] = "Hyperion",
+            ["LAPIS_ARMOR_HELMET"] = "Lapis Armor Helmet",
+            ["LAPIS_ARMOR_CHESTPLATE"] = "Lapis Armor Chestplate",
+            ["LAPIS_ARMOR_LEGGINGS"] = "Lapis Armor Leggings",
+            ["LAPIS_ARMOR_BOOTS"] = "Lapis Armor Boots",
+            ["LAPIS_CHEST_PLUS"] = "Lapis Chest+",
+            ["ASPECT_OF_THE_END"] = "Aspect of the End",
+            ["ASPECT_OF_THE_DRAGONS"] = "Aspect of the Dragons",
         };
-        var sets = new Dictionary<string, HashSet<string>> { ["FINAL_DESTINATION"] = FinalDestination.ToHashSet() };
-        armorSets = new ArmorSetResolver(() => sets, _ => Task.FromResult<IReadOnlyDictionary<string, string>>(names));
+        var sets = withSets
+            ? new Dictionary<string, HashSet<string>> { ["FINAL_DESTINATION"] = FinalDestination.ToHashSet(), ["LAPIS_ARMOR"] = Lapis.ToHashSet() }
+            : new Dictionary<string, HashSet<string>>();
+        var armorSets = new ArmorSetResolver(() => sets, _ => Task.FromResult<IReadOnlyDictionary<string, string>>(names));
         await armorSets.EnsureLoadedAsync();
 
         var search = new Mock<ItemFilterSearchService>(null, parser, NullLogger<ItemFilterSearchService>.Instance, 10) { CallBase = false };
@@ -42,7 +59,66 @@ public class ActiveSearchQueryResolverTests
         search.Setup(s => s.ResolveItemAsync(It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string[] words, CancellationToken _) => words.Length > 0 && words[0] == "hyperion"
                 ? new ResolvedItem("HYPERION", "Hyperion", 1) : null);
-        resolver = new ActiveSearchQueryResolver(search.Object, armorSets, parser);
+        search.Setup(s => s.FindNameMatchesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string phrase, CancellationToken _) =>
+            {
+                var prefix = byName.Where(n => n.Key.StartsWith(phrase)).ToList();
+                var contains = byName.Count(n => n.Key.Contains(phrase));
+                return new ItemNameMatches(prefix.Count, contains,
+                    prefix.Count == 1 ? new ResolvedItem(prefix[0].Value.Key, prefix[0].Value.Value, phrase.Split(' ').Length) : null);
+            });
+        return (new ActiveSearchQueryResolver(search.Object, armorSets, parser), armorSets);
+    }
+
+    [Test]
+    public async Task SingleWordResolvesToArmorSet()
+    {
+        var r = await resolver.ResolveAsync("lapis");
+        r.Tags.Should().BeEquivalentTo(Lapis);
+        r.ArmorSet.Should().Be("LAPIS_ARMOR");
+        r.Description.Should().Be("Lapis Armor set");
+    }
+
+    [Test]
+    public async Task SetNameWithGenericWordResolvesToSet()
+    {
+        var r = await resolver.ResolveAsync("lapis armor set");
+        r.ArmorSet.Should().Be("LAPIS_ARMOR");
+    }
+
+    [Test]
+    public async Task WithoutSetsAmbiguousWordIsNameContains()
+    {
+        var (noSets, _) = await Build(false);
+        var r = await noSets.ResolveAsync("lapis");
+        r.Tags.Should().BeEmpty();
+        r.ArmorSet.Should().BeNull();
+        r.ItemNameContains.Should().Be("lapis");
+        r.Description.Should().Be("Name contains 'lapis'");
+    }
+
+    [Test]
+    public async Task ExactNameWithPlusIsSingleTag()
+    {
+        var r = await resolver.ResolveAsync("lapis chest+");
+        r.Tags.Should().Equal("LAPIS_CHEST_PLUS");
+        r.ItemNameContains.Should().BeNull();
+    }
+
+    [Test]
+    public async Task AmbiguousPrefixIsNameContains()
+    {
+        var r = await resolver.ResolveAsync("aspect");
+        r.Tags.Should().BeEmpty();
+        r.ItemNameContains.Should().Be("aspect");
+    }
+
+    [Test]
+    public async Task UniqueItemWordIsSingleTag()
+    {
+        var r = await resolver.ResolveAsync("hyperion");
+        r.Tags.Should().Equal("HYPERION");
+        r.ItemNameContains.Should().BeNull();
     }
 
     [Test]

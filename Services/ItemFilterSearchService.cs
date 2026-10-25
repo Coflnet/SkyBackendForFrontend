@@ -60,6 +60,12 @@ public record FilterSearchResult(List<SearchResultItem> Results, bool TimedOut =
 /// <param name="Consumed">how many words were used</param>
 public record ResolvedItem(string Tag, string Name, int Consumed);
 
+/// <summary>How many distinct items match a phrase by name</summary>
+/// <param name="Prefix">items whose name starts with the phrase</param>
+/// <param name="Contains">items whose name contains the phrase anywhere (includes the prefix matches)</param>
+/// <param name="Single">the item if exactly one name starts with the phrase, else null</param>
+public record ItemNameMatches(int Prefix, int Contains, ResolvedItem Single);
+
 
 /// <summary>
 /// Resolves search phrases like "hyperion sharp 7" to an item plus filters
@@ -174,6 +180,20 @@ public class ItemFilterSearchService : IDisposable
         var list = await GetNames(ct);
         var entry = list?.Exact.GetValueOrDefault(normalizedPhrase);
         return entry == null ? null : new ResolvedItem(entry.Tag, entry.Name, normalizedPhrase.Split(' ').Length);
+    }
+
+    /// <summary>
+    /// Counts the items whose name starts with / contains the normalized phrase
+    /// </summary>
+    public virtual async Task<ItemNameMatches> FindNameMatchesAsync(string normalizedPhrase, CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        if (list == null || string.IsNullOrEmpty(normalizedPhrase))
+            return new ItemNameMatches(0, 0, null);
+        var prefix = list.Entries.Where(e => e.Lower.StartsWith(normalizedPhrase)).GroupBy(e => e.Tag).Select(g => g.First()).ToList();
+        var contains = list.Entries.Where(e => e.Lower.Contains(normalizedPhrase)).Select(e => e.Tag).Distinct().Count();
+        var single = prefix.Count == 1 ? new ResolvedItem(prefix[0].Tag, prefix[0].Name, normalizedPhrase.Split(' ').Length) : null;
+        return new ItemNameMatches(prefix.Count, contains, single);
     }
 
     /// <summary>

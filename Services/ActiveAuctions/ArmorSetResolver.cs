@@ -146,6 +146,50 @@ public class ArmorSetResolver
         return true;
     }
 
+    private static readonly HashSet<string> GenericWords = new() { "armor", "set", "armour" };
+
+    private static string[] WithoutGeneric(IEnumerable<string> words) => words.Where(w => !GenericWords.Contains(w)).ToArray();
+
+    /// <summary>
+    /// Matches the whole phrase against a set: by key/name words, by display name ignoring "armor/set/armour",
+    /// or a single word (4+ chars) that is the first word of exactly one set name ("lapis" for "Lapis Armor")
+    /// </summary>
+    public virtual bool TryMatchPhrase(string[] words, out string setKey, out string[] tags)
+    {
+        setKey = null;
+        tags = null;
+        var s = state;
+        if (s == null || s.Empty || words.Length == 0)
+            return false;
+        if (TryMatch(words, 0, out setKey, out tags, out var used) && used == words.Length)
+            return true;
+        var stripped = WithoutGeneric(words);
+        if (stripped.Length > 0)
+        {
+            var hit = s.Sets.FirstOrDefault(set => WithoutGeneric(set.Name.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .SequenceEqual(stripped));
+            if (hit != null)
+            {
+                setKey = hit.Key;
+                tags = hit.Tags;
+                return true;
+            }
+        }
+        if (words.Length == 1 && words[0].Length >= 4 && !GenericWords.Contains(words[0]))
+        {
+            var firsts = s.Sets.Where(set => set.Name.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == words[0]).Take(2).ToList();
+            if (firsts.Count == 1)
+            {
+                setKey = firsts[0].Key;
+                tags = firsts[0].Tags;
+                return true;
+            }
+        }
+        setKey = null;
+        tags = null;
+        return false;
+    }
+
     /// <summary>
     /// Piece tags of a set by key or display name, null if unknown (or not loaded yet)
     /// </summary>
