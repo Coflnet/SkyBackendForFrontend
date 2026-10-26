@@ -9,12 +9,26 @@ using Microsoft.Extensions.Logging;
 namespace Coflnet.Sky.Commands.Shared;
 
 /// <summary>
-/// Result of <see cref="FilterQueryParser.Parse"/>
+/// Result of <see cref="FilterQueryParser.Parse(IEnumerable{string})"/>
 /// </summary>
 /// <param name="Filters">filter name to value, in the order the words were typed</param>
 /// <param name="Unmatched">words that did not match any filter</param>
 /// <param name="Description">human readable form eg "Sharpness 7, Heroic"</param>
 public record ParsedFilters(Dictionary<string, string> Filters, string[] Unmatched, string Description);
+
+/// <summary>
+/// Switches <see cref="FilterQueryParser"/> into "search mode" where a bare word is only a filter if the intent is unambiguous.
+/// Without options (default mode) the parser is as lenient as possible, which suits flip filter commands.
+/// </summary>
+/// <param name="IsNameWord">
+/// true if the (lowercase) word is part of an item name. Such a word is never turned into a filter
+/// unless an explicit value follows it ("sharpness 7"), rarity words are exempt. May be null (nothing is a name word).
+/// </param>
+/// <param name="RequireExplicitValues">
+/// Words that resolve without an explicit value (implicit <c>&gt;0</c>/<c>true</c>/default) must match the filter name exactly,
+/// no prefix/initials matching of enchants, filter names or reforge/rarity options.
+/// </param>
+public record FilterParseOptions(Func<string, bool> IsNameWord = null, bool RequireExplicitValues = true);
 
 /// <summary>
 /// Turns free text like "sharp 7 heroic recomb" into item filters.
@@ -231,7 +245,12 @@ public class FilterQueryParser
     /// <summary>
     /// Parses lowercase words greedily from left to right
     /// </summary>
-    public ParsedFilters Parse(IEnumerable<string> words)
+    public ParsedFilters Parse(IEnumerable<string> words) => Parse(words, null);
+
+    /// <summary>
+    /// Parses lowercase words greedily from left to right, with <paramref name="options"/> being non null the stricter search mode is used
+    /// </summary>
+    public ParsedFilters Parse(IEnumerable<string> words, FilterParseOptions options)
     {
         var ix = GetIndex();
         var w = Normalize(words);
@@ -241,13 +260,13 @@ public class FilterQueryParser
         var i = 0;
         while (i < w.Count)
         {
-            var m = MatchAt(ix, w, i, null);
+            var m = MatchAt(ix, w, i, null, options);
             var consumed = 0;
             if (m != null)
                 consumed = m.Consumed;
             else if (PlainNumber.IsMatch(w[i]) && i + 1 < w.Count)
             {
-                m = MatchAt(ix, w, i + 1, w[i]);
+                m = MatchAt(ix, w, i + 1, w[i], options);
                 consumed = m == null ? 0 : m.Consumed + 1;
             }
             if (m == null || filters.ContainsKey(m.Info.Name))
@@ -285,14 +304,20 @@ public class FilterQueryParser
         return result;
     }
 
-    private Match MatchAt(Index ix, List<string> w, int i, string pre)
-        => TryAlias(ix, w, i, pre)
-            ?? TryUltimate(ix, w, i, pre)
-            ?? TryEnchant(ix, w, i, pre)
-            ?? TryFilterName(ix, w, i, pre)
-            ?? (pre == null ? TryOptionValue(ix, w, i) : null);
+    private Match MatchAt(Index ix, List<string> w, int i, string pre, FilterParseOptions o)
+        => TryAlias(ix, w, i, pre, o)
+            ?? TryUltimate(ix, w, i, pre, o)
+            ?? TryEnchant(ix, w, i, pre, o)
+            ?? TryFilterName(ix, w, i, pre, o)
+            ?? (pre == null ? TryOptionValue(ix, w, i, o) : null);
 
-    private Match TryAlias(Index ix, List<string> w, int i, string pre)
+    /// <summary>
+    /// In search mode a match without explicit value must not consume item name words
+    /// </summary>
+    private static bool ConsumesNameWord(FilterParseOptions o, bool explicitValue, IEnumerable<string> consumed)
+        => o?.IsNameWord != null && !explicitValue && consumed.SelectMany(c => c.Split('_')).Any(o.IsNameWord);
+
+    private Match TryAlias(Index ix, List<string> w, int i, string pre, FilterParseOptions o)
     {
         for (var k = Math.Min(3, w.Count - i); k >= 1; k--)
         {
@@ -304,16 +329,18 @@ public class FilterQueryParser
             {
                 if (pre != null)
                     continue;
+                if (ConsumesNameWord(o, false, w.Skip(i).Take(k)))
+                    continue;
                 return new Match(info, alias.Value, k);
             }
             var resolved = ResolveValue(info, w, i + k, alias.Default, pre);
-            if (resolved != null)
+            if (resolved != null && !ConsumesNameWord(o, pre != null || resolved.Value.used > 0, w.Skip(i).Take(k)))
                 return new Match(info, resolved.Value.value, k + resolved.Value.used);
         }
         return null;
     }
 
-    private Match TryUltimate(Index ix, List<string> w, int i, string pre)
+    private Match TryUltimate(Index ix, List<string> w, int i, string pre, FilterParseOptions o)
     {
         if (w[i] != "ult" && w[i] != "ultimate")
             return null;
@@ -330,13 +357,13 @@ public class FilterQueryParser
             if (info == null)
                 continue;
             var resolved = ResolveValue(info, w, i + 1 + kx, null, pre);
-            if (resolved != null)
+            if (resolved != null && !ConsumesNameWord(o, pre != null || resolved.Value.used > 0, w.Skip(i + 1).Take(kx)))
                 return new Match(info, resolved.Value.value, 1 + kx + resolved.Value.used);
         }
         return null;
     }
 
-    private Match TryEnchant(Index ix, List<string> w, int i, string pre)
+    private Match TryEnchant(Index ix, List<string> w, int i, string pre, FilterParseOptions o)
     {
         for (var k = Math.Min(2, w.Count - i); k >= 1; k--)
         {
@@ -348,12 +375,19 @@ public class FilterQueryParser
                 passes.Add(e => e.Initials == c || e.StrippedInitials == c);
             if (c.Length >= 3 && !ix.ExactOptionWords.Contains(c))
                 passes.Add(e => e.Lower.StartsWith(c) || e.Stripped.StartsWith(c));
-            foreach (var pass in passes)
-                foreach (var e in ix.Enchants.Where(pass))
+            for (var p = 0; p < passes.Count; p++)
+                foreach (var e in ix.Enchants.Where(passes[p]))
                 {
                     var resolved = ResolveValue(e, w, i + k, null, pre);
-                    if (resolved != null)
-                        return new Match(e, resolved.Value.value, k + resolved.Value.used);
+                    if (resolved == null)
+                        continue;
+                    var explicitValue = pre != null || resolved.Value.used > 0;
+                    // implicit ">0": only the exact enchant name, and never a word that is part of an item name
+                    if (!explicitValue && o is { RequireExplicitValues: true } && p > 0)
+                        continue;
+                    if (ConsumesNameWord(o, explicitValue, w.Skip(i).Take(k)))
+                        continue;
+                    return new Match(e, resolved.Value.value, k + resolved.Value.used);
                 }
         }
         return null;
@@ -361,7 +395,7 @@ public class FilterQueryParser
 
     private static bool LettersOnlyWithUnderscore(string c) => LettersOnly.IsMatch(c.Replace("_", ""));
 
-    private Match TryFilterName(Index ix, List<string> w, int i, string pre)
+    private Match TryFilterName(Index ix, List<string> w, int i, string pre, FilterParseOptions o)
     {
         for (var k = Math.Min(3, w.Count - i); k >= 1; k--)
         {
@@ -373,14 +407,20 @@ public class FilterQueryParser
                 if (info.Kind == Kind.None || info.Kind == Kind.Enchant || !info.Squashed.StartsWith(c))
                     continue;
                 var resolved = ResolveValue(info, w, i + k, null, pre);
-                if (resolved != null)
-                    return new Match(info, resolved.Value.value, k + resolved.Value.used);
+                if (resolved == null)
+                    continue;
+                var explicitValue = pre != null || resolved.Value.used > 0;
+                if (!explicitValue && o is { RequireExplicitValues: true } && info.Squashed != c)
+                    continue;
+                if (ConsumesNameWord(o, explicitValue, w.Skip(i).Take(k)))
+                    continue;
+                return new Match(info, resolved.Value.value, k + resolved.Value.used);
             }
         }
         return null;
     }
 
-    private Match TryOptionValue(Index ix, List<string> w, int i)
+    private Match TryOptionValue(Index ix, List<string> w, int i, FilterParseOptions o)
     {
         var word = w[i];
         if (word.Length < 3 || !LettersOnly.IsMatch(word))
@@ -389,9 +429,15 @@ public class FilterQueryParser
         foreach (var t in targets)
         {
             var exact = t.Options.FirstOrDefault(o => o.Equals(word, StringComparison.OrdinalIgnoreCase));
-            if (exact != null)
-                return new Match(t, exact, 1);
+            if (exact == null)
+                continue;
+            // rarity words always stay filters, reforges that are also item name words ("superior") do not
+            if (t != ix.Rarity && ConsumesNameWord(o, false, new[] { word }))
+                continue;
+            return new Match(t, exact, 1);
         }
+        if (o is { RequireExplicitValues: true })
+            return null; // no prefix guessing ("wither" is not "withered")
         foreach (var t in targets)
         {
             var matches = t.Options.Where(o => o.StartsWith(word, StringComparison.OrdinalIgnoreCase)).Take(2).ToList();

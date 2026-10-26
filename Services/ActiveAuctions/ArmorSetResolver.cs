@@ -146,7 +146,8 @@ public class ArmorSetResolver
         return true;
     }
 
-    private static readonly HashSet<string> GenericWords = new() { "armor", "set", "armour" };
+    /// <summary>Words that signal the user means an armor set ("ender armor")</summary>
+    public static readonly HashSet<string> GenericWords = new() { "armor", "set", "armour" };
 
     private static string[] WithoutGeneric(IEnumerable<string> words) => words.Where(w => !GenericWords.Contains(w)).ToArray();
 
@@ -191,6 +192,34 @@ public class ArmorSetResolver
     }
 
     /// <summary>
+    /// All sets the phrase could mean (same rules as <see cref="TryMatchPhrase"/> but without the uniqueness
+    /// requirement for a single word), used to offer them as suggestions
+    /// </summary>
+    public virtual IReadOnlyList<ArmorSetCandidate> FindCandidates(string[] words)
+    {
+        var s = state;
+        var result = new List<ArmorSetCandidate>();
+        if (s == null || s.Empty || words.Length == 0)
+            return result;
+        void Add(SetInfo set)
+        {
+            if (result.All(r => r.Key != set.Key))
+                result.Add(new ArmorSetCandidate(set.Key, set.Name, set.Tags));
+        }
+        if (TryMatch(words, 0, out var key, out _, out var used) && used == words.Length)
+            Add(s.Sets.First(x => x.Key == key));
+        var stripped = WithoutGeneric(words);
+        if (stripped.Length > 0)
+            foreach (var set in s.Sets.Where(set => WithoutGeneric(set.Name.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .SequenceEqual(stripped)))
+                Add(set);
+        if (words.Length == 1 && words[0].Length >= 4 && !GenericWords.Contains(words[0]))
+            foreach (var set in s.Sets.Where(set => set.Name.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() == words[0]))
+                Add(set);
+        return result;
+    }
+
+    /// <summary>
     /// Piece tags of a set by key or display name, null if unknown (or not loaded yet)
     /// </summary>
     public virtual string[] GetTags(string setKeyOrName)
@@ -208,3 +237,6 @@ public class ArmorSetResolver
     public virtual string GetName(string setKey)
         => state?.ByName.TryGetValue(setKey ?? "", out var set) == true ? set.Name : setKey;
 }
+
+/// <summary>An armor set a search phrase could refer to</summary>
+public record ArmorSetCandidate(string Key, string Name, string[] Tags);

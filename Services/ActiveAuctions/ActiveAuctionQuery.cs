@@ -71,13 +71,19 @@ public class ActiveAuctionPreview
 /// <param name="FromStore">true if answered from memory, false for the database fallback</param>
 /// <param name="SnapshotAt">when the data was snapshotted</param>
 /// <param name="ResolvedTags">effective tag set after expansion, empty when all items are searched</param>
+/// <param name="Suggestions">selectable narrowings of the free text query (armor set / item), empty without q</param>
 public record ActiveAuctionQueryResult(
     List<ActiveAuctionPreview> Items,
     int TotalCount,
     Dictionary<string, int> TagCounts,
     bool FromStore,
     DateTime SnapshotAt,
-    string[] ResolvedTags = null);
+    string[] ResolvedTags = null,
+    ActiveQuerySuggestion[] Suggestions = null)
+{
+    /// <summary>Narrowing offers for a free text query, never null (empty without <c>q</c>)</summary>
+    public ActiveQuerySuggestion[] Suggestions { get; init; } = Suggestions ?? Array.Empty<ActiveQuerySuggestion>();
+}
 
 /// <summary>Free text search interpreted as tags and filters</summary>
 public record ResolvedActiveQuery(
@@ -85,4 +91,16 @@ public record ResolvedActiveQuery(
     string ArmorSet,
     Dictionary<string, string> Filters,
     string ItemNameContains,
-    string Description);
+    string Description,
+    ActiveQuerySuggestion[] Suggestions = null)
+{
+    /// <summary>Optional narrowing offers, never null</summary>
+    public ActiveQuerySuggestion[] Suggestions { get; init; } = Suggestions ?? Array.Empty<ActiveQuerySuggestion>();
+}
+
+/// <summary>A selectable narrowing of a name search</summary>
+/// <param name="Kind">"armorSet" or "item"</param>
+/// <param name="Key">set key or item tag</param>
+/// <param name="Label">display text, eg "Ender set"</param>
+/// <param name="Tags">tags to search when selected (set pieces or the single item)</param>
+public record ActiveQuerySuggestion(string Kind, string Key, string Label, string[] Tags);

@@ -338,6 +338,34 @@ public class ItemFilterSearchService : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex NonLetters = new("[^a-z]+", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private NameList wordsSource;
+    private HashSet<string> wordsCache;
+
+    /// <summary>
+    /// Lowercase words (2+ letters) that occur in any item name, rebuilt when the name list is reloaded.
+    /// Used by the search mode of <see cref="FilterQueryParser"/> to keep item name words from becoming filters.
+    /// Empty if the names could not be loaded.
+    /// </summary>
+    public virtual async Task<HashSet<string>> GetNameWordsAsync(CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        if (list == null)
+            return new HashSet<string>();
+        lock (loadLock)
+        {
+            if (ReferenceEquals(wordsSource, list) && wordsCache != null)
+                return wordsCache;
+        }
+        var built = list.Entries.SelectMany(e => NonLetters.Split(e.Name.ToLowerInvariant()))
+            .Where(w => w.Length >= 2).ToHashSet();
+        lock (loadLock)
+        {
+            wordsSource = list;
+            return wordsCache = built;
+        }
+    }
+
     private async Task<NameList> GetNames(CancellationToken ct)
     {
         var current = names;
