@@ -27,6 +27,10 @@ public class ActiveAuctionReplica : BackgroundService
     private static readonly Counter ResyncRemoved = Metrics.CreateCounter("sky_api_active_replica_resync_removed_total", "Auctions removed by the resync");
     private static readonly Gauge SnapshotAge = Metrics.CreateGauge("sky_api_active_replica_snapshot_age_seconds", "Age of the query snapshot");
 
+    internal static readonly Counter SnapshotRebuilds = Metrics.CreateCounter("sky_api_active_replica_snapshot_rebuilds_total", "Snapshot rebuilds of the replica");
+    private static readonly Histogram RebuildSeconds = Metrics.CreateHistogram("sky_api_active_replica_rebuild_seconds", "Duration of a replica snapshot rebuild",
+        new HistogramConfiguration { Buckets = Histogram.ExponentialBuckets(0.005, 2, 12) });
+
     private const int MaxFetchPerResync = 500;
 
     private readonly IConfiguration config;
@@ -57,6 +61,11 @@ public class ActiveAuctionReplica : BackgroundService
         this.indexer = indexer;
         this.dbLoader = dbLoader;
         this.logger = logger;
+        Set.OnSnapshotRebuilt += duration =>
+        {
+            SnapshotRebuilds.Inc();
+            RebuildSeconds.Observe(duration.TotalSeconds);
+        };
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -100,7 +109,8 @@ public class ActiveAuctionReplica : BackgroundService
             Removed.WithLabels(reason).Inc(n);
     }
 
-    private void Maintain()
+    /// <summary>Ticks every 2s but the set only rebuilds a dirty snapshot every <see cref="ActiveAuctionSet.SnapshotMinInterval"/></summary>
+    internal void Maintain()
     {
         var snap = Set.RebuildSnapshotIfDirty();
         CountGauge.Set(Set.Count);
@@ -201,8 +211,8 @@ public class ActiveAuctionReplica : BackgroundService
                 var n = 0;
                 await foreach (var a in indexer.StreamAllAsync(ct))
                 {
-                    if (Set.Upsert(a, "indexer"))
-                        n++;
+                    Set.Upsert(a, "indexer");
+                    n++; // count what the indexer sent, unchanged copies (already ingested) are not accepted again
                 }
                 if (n > 0)
                     return;

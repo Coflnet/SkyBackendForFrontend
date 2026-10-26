@@ -188,4 +188,50 @@ public class ActiveAuctionReplicaTests
         replica.HandleRemoved("AUCTION_ENDED", new SaveAuction { Uuid = a.Uuid });
         set.Count.Should().Be(0);
     }
+
+    [Test]
+    public void MaintainRebuildsAtMostOncePerIntervalAndCountsRebuilds()
+    {
+        var before = ActiveAuctionReplica.SnapshotRebuilds.Value;
+        replica.HandleNewAuction(Auction(1), "NEW_AUCTION");
+        replica.Maintain();
+        ActiveAuctionReplica.SnapshotRebuilds.Value.Should().Be(before + 1);
+        replica.HandleNewAuction(Auction(2), "NEW_AUCTION");
+        replica.Maintain();
+        replica.Maintain();
+        ActiveAuctionReplica.SnapshotRebuilds.Value.Should().Be(before + 1, "a dirty set waits for the interval");
+        set.Snapshot.Count.Should().Be(1);
+        set.SnapshotMinInterval = TimeSpan.Zero;
+        replica.Maintain();
+        ActiveAuctionReplica.SnapshotRebuilds.Value.Should().Be(before + 2);
+        set.Snapshot.Count.Should().Be(2);
+    }
+
+    [Test]
+    public void UnchangedKafkaResightingDoesNotMarkDirty()
+    {
+        var end = DateTime.UtcNow.AddHours(1);
+        var first = Auction(3);
+        first.End = end;
+        replica.HandleNewAuction(first, "NEW_AUCTION");
+        var version = set.Version;
+        var again = Auction(3);
+        again.End = end;
+        replica.HandleNewAuction(again, "NEW_AUCTION");
+        set.Version.Should().Be(version);
+    }
+
+    [Test]
+    public async Task AlreadyPresentItemsCountAsSuccessfulInitialLoad()
+    {
+        var end = DateTime.UtcNow.AddHours(1);
+        var existing = Auction(1);
+        existing.End = end;
+        set.Upsert(existing, "kafka");
+        var streamed = Auction(1);
+        streamed.End = end;
+        indexer.Setup(i => i.StreamAllAsync(It.IsAny<CancellationToken>())).Returns(() => Stream(new[] { streamed }));
+        await replica.LoadInitialAsync(default);
+        loader.Calls.Should().Be(0, "the database fallback must not run");
+    }
 }

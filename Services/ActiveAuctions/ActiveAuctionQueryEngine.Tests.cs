@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using AwesomeAssertions;
 using Coflnet.Sky.Core;
 using Coflnet.Sky.Filter;
@@ -176,5 +177,26 @@ public class ActiveAuctionQueryEngineTests
         HighlightExtractor.Extract(a, filters).Should().HaveCount(HighlightExtractor.MaxHighlights);
         foreach (var k in filters.Keys)
             a.FlatenedNBT.Remove(k);
+    }
+
+    [Test]
+    public async Task AuctionsEndedSinceTheSnapshotAreExcluded()
+    {
+        var set = new ActiveAuctionSet();
+        set.Upsert(new SaveAuction
+        {
+            UId = 1, Uuid = 1.ToString("x32"), Tag = "T", ItemName = "n", StartingBid = 1, End = DateTime.UtcNow.AddMilliseconds(300),
+            Enchantments = new(), Bids = new(), FlatenedNBT = new Dictionary<string, string>()
+        }, "t");
+        set.Upsert(new SaveAuction
+        {
+            UId = 2, Uuid = 2.ToString("x32"), Tag = "T", ItemName = "n", StartingBid = 1, End = DateTime.UtcNow.AddHours(1),
+            Enchantments = new(), Bids = new(), FlatenedNBT = new Dictionary<string, string>()
+        }, "t");
+        var snap = set.GetFreshSnapshot();
+        snap.Count.Should().Be(2);
+        await Task.Delay(500);
+        var result = ActiveAuctionQueryEngine.Execute(snap, Q(ActiveSortOrder.ENDING_SOON), Array.Empty<string>(), new(), null);
+        result.Items.Select(i => i.Uuid).Should().Equal(2.ToString("x32"));
     }
 }

@@ -26,8 +26,11 @@ public static class ActiveAuctionQueryEngine
         var candidates = GetCandidates(snapshot, query, tags, narrow ? filters : null);
         var contains = string.IsNullOrWhiteSpace(query.ItemNameContains) ? null : query.ItemNameContains.Trim();
         var matched = new List<SaveAuction>();
+        var now = DateTime.UtcNow;
         foreach (var a in candidates)
         {
+            if (a.End <= now)
+                continue; // ended since the snapshot was built
             if (query.SellerId != null && a.AuctioneerId != query.SellerId)
                 continue;
             if (contains != null && (a.ItemName == null || a.ItemName.IndexOf(contains, StringComparison.OrdinalIgnoreCase) < 0))

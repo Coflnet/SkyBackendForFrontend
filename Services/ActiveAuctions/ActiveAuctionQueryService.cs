@@ -119,7 +119,7 @@ public class ActiveAuctionQueryService
         var tags = await ResolveTagsAsync(q);
         var filters = CleanFilters(q.Filters);
         var matcher = GetMatcher(filters);
-        var snapshot = replica.Set.GetFreshSnapshot();
+        var snapshot = replica.Set.RebuildSnapshotIfDirty(); // throttled, queries must not force rebuilds
         var result = await Task.Run(() => ActiveAuctionQueryEngine.Execute(snapshot, q, tags, filters, matcher), ct);
         await FillPlayerNamesAsync(result?.Items);
         return result;
