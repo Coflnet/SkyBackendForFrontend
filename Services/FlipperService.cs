@@ -505,9 +505,9 @@ namespace Coflnet.Sky.Commands.Shared
             if (flip.Auction.Context != null)
                 flip.Auction.Context["csh"] = (DateTime.UtcNow - flip.Auction.FindTime).ToString();
 
-            var isPublicBed = isPreApi && ApiClock.IsPublicBed(flip.Auction, PublicBedMargin);
-            if (isPublicBed)
-                SetProp(flip, "pubbed", "y"); // decided before the first release, the instance is shared afterwards
+            // The public api update never contains auctions still in their bed (measured 2026-11-02),
+            // so pre-api beds stay exclusive to prem+ until they become purchasable.
+            var isPublicBed = false;
             var uid = flip.UId;
             InCascade[uid] = DateTime.UtcNow;
             var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => AddLowPriced(flip, subs), flip.Auction.FindTime);

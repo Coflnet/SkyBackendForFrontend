@@ -320,23 +320,24 @@ namespace Coflnet.Sky.Commands.Tests
         }
 
         [Test]
-        public async Task PublicBedReleasesPremiumAndStarterImmediatelyAndHoldsFreeUntilApiUpdate()
+        public async Task PreApiBedStaysPremPlusExclusiveEvenWhenApiUpdateLandsInsideBed()
         {
+            // regression: beds whose next api update fell inside the bed were sent to premium and starter right away,
+            // but the public api never contains auctions that are still in their bed
             var service = CreateFastService();
             var flip = CreateCascadeFlip(1006, preApi: true);
-            var start = flip.Auction.Start;
-            service.ApiClock.Set(start - TimeSpan.FromSeconds(59.7)); // api update 300ms after start
-            var updateAt = start + TimeSpan.FromMilliseconds(300);
+            flip.Auction.Start = DateTime.UtcNow - TimeSpan.FromSeconds(20); // purchasable after ~0.5s
+            service.ApiClock.Set(flip.Auction.Start - TimeSpan.FromSeconds(59.7)); // api update 300ms after start
             var cons = await AddAllTiers(service);
 
-            await service.DeliverLowPricedAuction(flip).WaitAsync(TimeSpan.FromSeconds(5));
-            await WaitAll(cons);
+            await service.DeliverLowPricedAuction(flip);
+            await Task.Delay(200);
 
-            Assert.That(cons[1].LastBatchFlip.AdditionalProps["pubbed"], Is.EqualTo("y"));
-            Assert.That(cons[2].LastBatchFlip.AdditionalProps["pubbed"], Is.EqualTo("y"));
-            Assert.That(cons[1].ReceivedAt, Is.LessThan(updateAt));
-            Assert.That(cons[2].ReceivedAt, Is.LessThan(updateAt));
-            Assert.That(cons[3].ReceivedAt, Is.GreaterThanOrEqualTo(updateAt + TimeSpan.FromMilliseconds(15)));
+            Assert.That(cons[0].BatchCount, Is.EqualTo(1));
+            Assert.That(cons[1].BatchCount, Is.Zero);
+            Assert.That(cons[2].BatchCount, Is.Zero);
+            await WaitAll(cons);
+            Assert.That(cons[1].LastBatchFlip.AdditionalProps.ContainsKey("pubbed"), Is.False);
             await WaitCascades(service);
             foreach (var c in cons)
                 service.RemoveConnection(c);
