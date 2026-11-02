@@ -28,12 +28,12 @@ namespace Coflnet.Sky.Commands.Shared
             Connection = connection;
         }
 
-        public void StartWorkers()
+        public void StartWorkers(AccountTier? tier = null)
         {
             cancellationTokenSource?.Cancel();
             cancellationTokenSource = new CancellationTokenSource();
             var stoppingToken = cancellationTokenSource.Token;
-            var count = Connection.AccountInfo?.Tier switch
+            var count = (tier ?? Connection.AccountInfo?.Tier) switch
             {
                 AccountTier.PREMIUM => 3,
                 AccountTier.PREMIUM_PLUS => 6,
@@ -46,10 +46,8 @@ namespace Coflnet.Sky.Commands.Shared
 
             for (int i = 0; i < count; i++)
             {
-                var index = i;
                 _ = Task.Run(async () =>
                 {
-                    Console.Write("Debug: Started worker " + index);
                     while (!stoppingToken.IsCancellationRequested)
                     {
                         try
@@ -71,7 +69,6 @@ namespace Coflnet.Sky.Commands.Shared
                         }
                         catch (OperationCanceledException)
                         {
-                            Console.WriteLine($"Debug: worker {index} was canceled");
                             break;
                         }
                         catch (ChannelClosedException)

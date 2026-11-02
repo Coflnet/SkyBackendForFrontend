@@ -30,8 +30,6 @@ namespace Coflnet.Sky.Commands.Shared
         private ConcurrentDictionary<long, FlipConWrapper> SuperSubs = new ConcurrentDictionary<long, FlipConWrapper>();
         private readonly object subscriptionLock = new object();
         public ConcurrentQueue<FlipInstance> Flipps = new ConcurrentQueue<FlipInstance>();
-        private ConcurrentQueue<FlipInstance> SlowFlips = new ConcurrentQueue<FlipInstance>();
-        private ConcurrentQueue<LowPricedAuction> StarterFlips = new();
         public ServerFilterSumary FilterSumary { get; private set; } = new();
         /// <summary>
         /// Special hook
@@ -54,6 +52,12 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 Buckets = Prometheus.Histogram.LinearBuckets(start: 1, width: 2, count: 10)
             });
+        static Prometheus.Histogram releaseTiming = Prometheus.Metrics.CreateHistogram("sky_commands_flip_release_seconds", "Seconds from auction FindTime until the flip was released to a tier",
+            new Prometheus.HistogramConfiguration()
+            {
+                LabelNames = ["tier"],
+                Buckets = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 13, 20, 40]
+            });
         static Prometheus.Counter snipesReceived = Prometheus.Metrics.CreateCounter("sky_commands_snipes_received", "How many snipes were received");
         static Prometheus.Counter auctionsConsumed = Prometheus.Metrics.CreateCounter("sky_commands_auctions_received", "How many auctions were consumed");
         static Prometheus.Gauge tfmEnabled = Prometheus.Metrics.CreateGauge("sky_commands_tfm_enabled", "How many users have TFM enabled");
@@ -62,14 +66,30 @@ namespace Coflnet.Sky.Commands.Shared
         /// Special load burst queue that will send out 5 flips at load
         /// </summary>
         private ConcurrentQueue<FlipInstance> LoadBurst = new ConcurrentQueue<FlipInstance>();
+        /// <summary>
+        /// Auctions whose flip was released to prem+ but has not reached the free tier yet (not in <see cref="FlipIdLookup"/> before that)
+        /// </summary>
+        private ConcurrentDictionary<long, DateTime> InCascade = new ConcurrentDictionary<long, DateTime>();
+        private int cascadesInFlight;
+        internal int CascadesInFlight => Volatile.Read(ref cascadesInFlight);
         private ConcurrentDictionary<long, DateTime> SoldAuctions = new ConcurrentDictionary<long, DateTime>();
         IConfiguration config;
         private ILogger<FlipperService> logger;
 
-        public FlipperService(IConfiguration config, ILogger<FlipperService> logger)
+        public TierHandoff Handoff { get; set; }
+        /// <summary>Measures whether the handoff step was long enough, see <see cref="HandoffAudit"/></summary>
+        public HandoffAudit MatchAudit { get; set; }
+        public ApiUpdateClock ApiClock { get; set; }
+        /// <summary>Tolerance when deciding if an auction showed up in the public api right away</summary>
+        public static readonly TimeSpan PublicBedMargin = TimeSpan.FromSeconds(1);
+
+        public FlipperService(IConfiguration config, ILogger<FlipperService> logger, IFlipMatchTracker matchTracker = null, ApiUpdateClock apiClock = null)
         {
             this.config = config;
             this.logger = logger;
+            Handoff = new TierHandoff(matchTracker ?? new InMemoryFlipMatchTracker());
+            MatchAudit = new HandoffAudit(Handoff.Tracker);
+            ApiClock = apiClock ?? new ApiUpdateClock();
         }
 
         public void AddConnectionPlus(IFlipConnection connection, bool sendHistory = true)
@@ -133,8 +153,7 @@ namespace Coflnet.Sky.Commands.Shared
                 Unsubscribe(StarterSubs, connection.Connection.Id);
                 Unsubscribe(SlowSubs, connection.Connection.Id);
                 targetType[connection.Connection.Id] = connection;
-                if (!ReferenceEquals(targetType, SlowSubs))
-                    connection.StartWorkers();
+                connection.StartWorkers();
                 connection.StartTierRefresh(UpdateConnectionTier);
             }
         }
@@ -146,7 +165,6 @@ namespace Coflnet.Sky.Commands.Shared
                 if (!OwnsConnection(connection))
                     return Task.CompletedTask;
 
-                var wasSlow = OwnsConnection(SlowSubs, connection);
                 var targetType = tier switch
                 {
                     AccountTier.SUPER_PREMIUM => SuperSubs,
@@ -164,10 +182,7 @@ namespace Coflnet.Sky.Commands.Shared
                 RemoveWrapper(StarterSubs, connection);
                 RemoveWrapper(SlowSubs, connection);
                 targetType[connection.Connection.Id] = connection;
-                if (ReferenceEquals(targetType, SlowSubs))
-                    connection.StopWorkers();
-                else if (wasSlow)
-                    connection.StartWorkers();
+                connection.StartWorkers(tier);
             }
             UpdateFilterSumaries();
             return Task.CompletedTask;
@@ -220,7 +235,7 @@ namespace Coflnet.Sky.Commands.Shared
         /// <param name="auction"></param>
         public void AuctionSold(SaveAuction auction)
         {
-            if (!FlipIdLookup.ContainsKey(auction.UId))
+            if (!FlipIdLookup.ContainsKey(auction.UId) && !InCascade.ContainsKey(auction.UId))
                 return;
             SoldAuctions[auction.UId] = auction.End;
             var auctionUUid = auction.Uuid;
@@ -359,27 +374,103 @@ namespace Coflnet.Sky.Commands.Shared
                 });
             }
             activity.Log("sending to prem+");
-            await NotifyAll(flip, SuperSubs);
-            await Task.Delay(1000);
-            await NotifyAll(flip, Subs);
-            activity.Log("sheduling for starter");
-            PrepareSlow(flip);
+            var uid = flip.UId;
+            InCascade[uid] = DateTime.UtcNow;
+            var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => NotifyAll(flip, subs), flip.Auction.FindTime);
+            RunDetached(() => RunLowerCascade(flip, releasedAt), uid, "delivering flip to lower tiers");
         }
 
-        private void PrepareSlow(FlipInstance flip)
+        internal async Task RunLowerCascade(FlipInstance flip, DateTime releasedAt)
+        {
+            try
+            {
+                TierDelivery deliver = subs => NotifyAll(flip, subs);
+                var uid = flip.UId;
+                var findTime = flip.Auction.FindTime;
+                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt);
+                releasedAt = await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt);
+                await Handoff.AwaitReleaseTo(uid, AccountTier.NONE, releasedAt);
+                if (SoldAuctions.ContainsKey(uid))
+                    flip.Sold = true;
+                AddToHistory(flip);
+                await ReleaseTo(AccountTier.NONE, SlowSubs, deliver, findTime);
+            }
+            finally
+            {
+                InCascade.TryRemove(flip.UId, out _);
+            }
+        }
+
+        /// <summary>
+        /// Runs the slower tiers without blocking the caller, so later flips of the same batch are not held up
+        /// </summary>
+        private void RunDetached(Func<Task> work, long uid, string errorMessage)
+        {
+            Interlocked.Increment(ref cascadesInFlight);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await work().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    dev.Logger.Instance.Error(e, errorMessage);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref cascadesInFlight);
+                }
+            });
+        }
+
+        /// <summary>Tracing is optional, unavailable when no service provider is configured (tests)</summary>
+        private static Activity StartTrace(string name, string uuid)
+        {
+            try
+            {
+                return DiHandler.GetService<ActivitySource>().StartActivity(name)?.SetTag("uuid", uuid);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private delegate Task TierDelivery(ConcurrentDictionary<long, FlipConWrapper> subscribers);
+
+        /// <summary>Delivers to one tier and returns the time of the release</summary>
+        private async Task<DateTime> ReleaseTo(AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers, TierDelivery deliver, DateTime findTime)
+        {
+            await deliver(subscribers).ConfigureAwait(false);
+            releaseTiming.WithLabels(tier.ToString()).Observe((DateTime.UtcNow - findTime).TotalSeconds);
+            return DateTime.UtcNow;
+        }
+
+        private async Task<DateTime> HandOffAndRelease(long uid, AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers,
+            TierDelivery deliver, DateTime findTime, DateTime releasedToHigherAt, TimeSpan? minHold = null,
+            List<StepDecision> decisions = null)
+        {
+            var decision = await Handoff.AwaitReleaseTo(uid, tier, releasedToHigherAt, minHold).ConfigureAwait(false);
+            decisions?.Add(new StepDecision(tier, decision));
+            return await ReleaseTo(tier, subscribers, deliver, findTime).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Remembers the flip for history requests and the load burst
+        /// </summary>
+        private void AddToHistory(FlipInstance flip)
         {
             if (FlipIdLookup.ContainsKey(flip.UId))
                 return;
-            SlowFlips.Enqueue(flip);
             Flipps.Enqueue(flip);
             FlipIdLookup[flip.UId] = true;
-            if (Flipps.Count > 1500)
-            {
-                if (Flipps.TryDequeue(out FlipInstance result))
-                {
-                    FlipIdLookup.Remove(result.UId, out bool value);
-                }
-            }
+            if (Flipps.Count > 1500 && Flipps.TryDequeue(out FlipInstance result))
+                FlipIdLookup.Remove(result.UId, out bool value);
+            LoadBurst.Enqueue(flip);
+            // runs concurrently, a plain Queue got corrupted (null entries when enumerated)
+            if (LoadBurst.Count > 5)
+                LoadBurst.TryDequeue(out _);
         }
 
         public async Task DeliverLowPricedAuctions(IEnumerable<LowPricedAuction> flips)
@@ -400,66 +491,138 @@ namespace Coflnet.Sky.Commands.Shared
         }
 
 
-        public async Task DeliverLowPricedAuction(LowPricedAuction flip, AccountTier minAccountTier = AccountTier.PREMIUM)
+        public async Task DeliverLowPricedAuction(LowPricedAuction flip)
         {
             if (flip.Auction.Context != null)
                 flip.Auction.Context["crec"] = (DateTime.UtcNow - flip.Auction.FindTime).ToString();
-            var tracer = DiHandler.GetService<ActivitySource>();
-            using var activity = tracer.StartActivity("DeliverLP")?.SetTag("uuid", flip.Auction.Uuid);
-            var time = (DateTime.UtcNow - flip.Auction.FindTime).TotalSeconds;
+            using var activity = StartTrace("DeliverLP", flip.Auction.Uuid);
 
             if (flip.Auction.Context != null)
                 flip.Auction.Context["csh"] = (DateTime.UtcNow - flip.Auction.FindTime).ToString();
-            if (flip.Auction.Context?.TryGetValue("pre-api", out var preApi) ?? true)
-            {
-                try
-                {
-                    await PreApiLowPriceHandler(this, flip);
-                    minAccountTier = AccountTier.PREMIUM_PLUS;
-                }
-                catch (System.Exception e)
-                {
-                    dev.Logger.Instance.Error(e, "Error in PreApiLowPriceHandler");
-                    await Task.Delay(30000);
-                }
-            }
-            if (flip.Finder != LowPricedAuction.FinderType.FLIPPER_AND_SNIPERS)
-                minAccountTier = AccountTier.PREMIUM_PLUS; // upgrade required tier for new finders
+            var isPreApi = flip.Auction.Context?.ContainsKey("pre-api") ?? true;
+            if (isPreApi)
+                await RunPreApiHandler(flip);
             if (flip.Auction.Context != null)
                 flip.Auction.Context["csh"] = (DateTime.UtcNow - flip.Auction.FindTime).ToString();
-            foreach (var item in SuperSubs)
-            {
-                item.Value.AddLowPriced(flip);
-            }
 
-            if (flip.Auction.Context?.TryGetValue("pre-api", out preApi) ?? true)
-            {
-                var waitTime = flip.Auction.Start - DateTime.UtcNow + TimeSpan.FromSeconds(20.5);
-                if (waitTime > TimeSpan.Zero)
-                    await Task.Delay(waitTime).ConfigureAwait(false);
-            }
-            if (flip.Finder != LowPricedAuction.FinderType.Rust)
-            {
-                if (minAccountTier >= AccountTier.PREMIUM_PLUS)
-                    await Task.Delay(900).ConfigureAwait(false);
-                await Task.Delay(100).ConfigureAwait(false); // the whole system got upgraded from prem+ money so this artificially slows down premium
-            }
-            foreach (var item in Subs)
-            {
-                item.Value.AddLowPriced(flip);
-            }
+            var isPublicBed = isPreApi && ApiClock.IsPublicBed(flip.Auction, PublicBedMargin);
+            if (isPublicBed)
+                SetProp(flip, "pubbed", "y"); // decided before the first release, the instance is shared afterwards
+            var uid = flip.UId;
+            InCascade[uid] = DateTime.UtcNow;
+            var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => AddLowPriced(flip, subs), flip.Auction.FindTime);
+            RunDetached(() => RunLowerCascade(flip, isPreApi, isPublicBed, releasedAt), uid, "delivering low priced auction to lower tiers");
+        }
 
-            StarterFlips.Enqueue(flip);
-
-            if (flip.TargetPrice - flip.Auction.StartingBid < 250_000) // send below 200k profit out to everyone
+        internal async Task RunLowerCascade(LowPricedAuction flip, bool isPreApi, bool isPublicBed, DateTime releasedAt)
+        {
+            try
             {
-                foreach (var item in SlowSubs)
-                {
-                    item.Value.AddLowPriced(flip);
-                }
+                TierDelivery deliver = subs => AddLowPriced(flip, subs);
+                var uid = flip.UId;
+                var audited = !isPublicBed && MatchAudit?.TryClaim(uid) == true;
+                var steps = new List<StepDecision>();
+                releasedAt = isPublicBed
+                    ? await ReleasePublicBed(flip, deliver)
+                    : await ReleaseToPaidTiers(flip, isPreApi, deliver, releasedAt, steps);
+
+                steps.Add(new StepDecision(AccountTier.NONE, await Handoff.AwaitReleaseTo(uid, AccountTier.NONE, releasedAt)));
+                RecordInHistory(flip);
+                var forFree = SoldAuctions.ContainsKey(uid) ? CopyWithProp(flip, "sold", "y") : flip;
+                await ReleaseTo(AccountTier.NONE, SlowSubs, subs => AddLowPriced(forFree, subs), flip.Auction.FindTime);
+                if (audited)
+                    MatchAudit.Schedule(uid, isPreApi ? HandoffAudit.SourcePreApi : HandoffAudit.SourceApi, steps);
             }
+            finally
+            {
+                InCascade.TryRemove(flip.UId, out _);
+            }
+        }
+
+        private void RecordInHistory(LowPricedAuction flip)
+        {
+            if (flip.TargetPrice - flip.Auction.StartingBid < 250_000)
+                return;
+            var historyFlip = LowPriceToFlip(flip);
+            historyFlip.Sold = SoldAuctions.ContainsKey(flip.UId);
+            AddToHistory(historyFlip);
+        }
+
+        private async Task RunPreApiHandler(LowPricedAuction flip)
+        {
+            try
+            {
+                await PreApiLowPriceHandler(this, flip);
+            }
+            catch (System.Exception e)
+            {
+                dev.Logger.Instance.Error(e, "Error in PreApiLowPriceHandler");
+                await Task.Delay(30000);
+            }
+        }
+
+        /// <summary>
+        /// The auction is visible in the public api right after it started, so premium and starter can't be held back.
+        /// Free users still wait for the api update that makes it public.
+        /// </summary>
+        private async Task<DateTime> ReleasePublicBed(LowPricedAuction flip, TierDelivery deliver)
+        {
+            var findTime = flip.Auction.FindTime;
+            await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime);
+            var releasedAt = await ReleaseTo(AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime);
+            var publicAt = ApiClock.FirstUpdateAfter(flip.Auction.Start);
+            return publicAt.HasValue && publicAt.Value > releasedAt ? publicAt.Value : releasedAt;
+        }
+
+        private async Task<DateTime> ReleaseToPaidTiers(LowPricedAuction flip, bool isPreApi, TierDelivery deliver, DateTime releasedAt, List<StepDecision> steps)
+        {
+            var uid = flip.UId;
+            var findTime = flip.Auction.FindTime;
+            if (isPreApi)
+                releasedAt = await WaitForApiVisibility(flip, releasedAt);
+            if (flip.Finder == LowPricedAuction.FinderType.Rust)
+                releasedAt = await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime);
             else
-                PrepareSlow(LowPriceToFlip(flip));
+                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt, isPreApi ? TimeSpan.FromSeconds(1) : null, steps);
+            return await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt, null, steps);
+        }
+
+        private static async Task<DateTime> WaitForApiVisibility(LowPricedAuction flip, DateTime releasedAt)
+        {
+            var visibleAt = flip.Auction.Start + TimeSpan.FromSeconds(20.5);
+            var waitTime = visibleAt - DateTime.UtcNow;
+            if (waitTime > TimeSpan.Zero)
+                await Task.Delay(waitTime).ConfigureAwait(false);
+            return releasedAt > visibleAt ? releasedAt : visibleAt;
+        }
+
+        private static Task AddLowPriced(LowPricedAuction flip, ConcurrentDictionary<long, FlipConWrapper> subscribers)
+        {
+            foreach (var item in subscribers)
+            {
+                item.Value.AddLowPriced(flip);
+            }
+            return Task.CompletedTask;
+        }
+
+        private static LowPricedAuction CopyWithProp(LowPricedAuction flip, string key, string value)
+        {
+            var props = flip.AdditionalProps == null ? new Dictionary<string, string>() : new Dictionary<string, string>(flip.AdditionalProps);
+            props[key] = value;
+            return new LowPricedAuction()
+            {
+                AdditionalProps = props,
+                Auction = flip.Auction,
+                DailyVolume = flip.DailyVolume,
+                Finder = flip.Finder,
+                TargetPrice = flip.TargetPrice
+            };
+        }
+
+        private static void SetProp(LowPricedAuction flip, string key, string value)
+        {
+            flip.AdditionalProps ??= new Dictionary<string, string>();
+            flip.AdditionalProps[key] = value;
         }
 
 
@@ -497,45 +660,6 @@ namespace Coflnet.Sky.Commands.Shared
 
             if (subscribers.TryRemove(new KeyValuePair<long, FlipConWrapper>(connection.Id, value)))
                 value.Stop();
-        }
-
-        public async Task ProcessSlowQueue()
-        {
-            while (true)
-            {
-                if (SlowFlips.TryDequeue(out FlipInstance flip))
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await SendSlowFlip(flip);
-                        }
-                        catch (Exception e)
-                        {
-                            logger.LogError(e, $"Failed to send slow flip");
-                        }
-                    }, new CancellationTokenSource(30_000).Token);
-                }
-                if (SlowFlips.Count > 800)
-                    return; // to large queue, continue immediately
-                await Task.Delay(DelayTimeFor(SlowFlips.Count)).ConfigureAwait(false);
-            }
-        }
-
-        private async Task SendSlowFlip(FlipInstance flip)
-        {
-            var activitySource = DiHandler.GetService<ActivitySource>();
-            using var activity = activitySource.StartActivity("SendSlowFlip")?.SetTag("uuid", flip.Auction.Uuid);
-            if (SoldAuctions.ContainsKey(flip.UId))
-                flip.Sold = true;
-            await NotifyAll(flip, SlowSubs);
-            if (flip.Uuid[0] == 'a')
-                Console.Write("sf+" + SlowSubs.Count);
-            LoadBurst.Enqueue(flip);
-            // SendSlowFlip runs concurrently, a plain Queue got corrupted (null entries when enumerated)
-            if (LoadBurst.Count > 5)
-                LoadBurst.TryDequeue(out _);
         }
 
         ConsumerConfig consumerConf = new ConsumerConfig
@@ -660,11 +784,6 @@ namespace Coflnet.Sky.Commands.Shared
             }, CancellationToken.None, consumerConf.GroupId, batchSize, AutoOffsetReset.Latest);
         }
 
-        public static int DelayTimeFor(int queueSize, double minutes = 0.66, int max = 10000)
-        {
-            return (int)Math.Min((TimeSpan.FromMinutes(minutes) / (Math.Max(queueSize, 1))).TotalMilliseconds, max);
-        }
-
         /// <summary>
         /// Removes old <see cref="SoldAuctions"/>
         /// </summary>
@@ -724,34 +843,36 @@ namespace Coflnet.Sky.Commands.Shared
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            RunIsolatedForever(async () =>
-            {
-                while (!stoppingToken.IsCancellationRequested)
-                {
-                    if (!StarterFlips.TryDequeue(out LowPricedAuction flip))
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(13)).ConfigureAwait(false);
-                        continue;
-                    }
-                    foreach (var item in StarterSubs.Keys)
-                    {
-                        if (!StarterSubs.TryGetValue(item, out FlipConWrapper con) || !con.AddLowPriced(flip) && con.Closed)
-                        {
-                            StarterSubs.TryRemove(item, out _);
-                        }
-                    }
-                    await Task.Delay(DelayTimeFor(StarterFlips.Count, 0.2, 2000)).ConfigureAwait(false);
-                }
-            }, "starter premium flips", stoppingToken);
-
             RunIsolatedForever(ListentoUnavailableTopics, "flip wait", stoppingToken);
             RunIsolatedForever(ListenToNewFlips, "flip wait", stoppingToken);
             RunIsolatedForever(ListenToLowPriced, "low priced auctions", stoppingToken);
             RunIsolatedForever(ConsumeNewAuctions, "consuming new auctions for user filter", stoppingToken);
+            StartApiClockRefresh(stoppingToken);
 
-            RunIsolatedForever(ProcessSlowQueue, "slow queue processor", stoppingToken, 200);
             DiHandler.ServiceProvider.GetRequiredService<SettingsService>(); // warmup
             return Task.CompletedTask;
+        }
+
+        private void StartApiClockRefresh(CancellationToken stoppingToken)
+        {
+            if (string.IsNullOrEmpty(config?["UPDATER_BASE_URL"]))
+            {
+                logger?.LogInformation("UPDATER_BASE_URL not set, api update clock disabled");
+                return;
+            }
+            RunIsolatedForever(RefreshApiClock, "api update clock", stoppingToken, 2 * 60_000);
+        }
+
+        private async Task RefreshApiClock()
+        {
+            try
+            {
+                ApiClock.Set(await new Coflnet.Sky.Commands.MC.NextUpdateRetriever().GetLastUpdate());
+            }
+            catch (Exception e)
+            {
+                logger?.LogError(e, "refreshing api update clock");
+            }
         }
 
         private static TaskFactory factory = new TaskFactory();
@@ -788,6 +909,7 @@ namespace Coflnet.Sky.Commands.Shared
                 var list = new List<FlipConWrapper>();
                 list.AddRange(SuperSubs.Values);
                 list.AddRange(Subs.Values);
+                list.AddRange(StarterSubs.Values);
                 list.AddRange(SlowSubs.Values);
                 return list;
             }

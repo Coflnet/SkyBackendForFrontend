@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Coflnet.Payments.Client.Api;
 using System;
@@ -236,6 +237,8 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<PlayerName.PlayerNameService>();
             services.AddSingleton<IdConverter>();
             services.AddSingleton<AuctionService>();
+            services.TryAddSingleton<IFlipMatchTracker, InMemoryFlipMatchTracker>();
+            services.TryAddSingleton<ApiUpdateClock>();
             services.AddSingleton<FlipperService>();
             services.AddSingleton<Kafka.KafkaCreator>();
             services.AddSingleton<IStateUpdateService, StateUpdateService>();
