@@ -32,20 +32,19 @@ public static class GoalHud
 {
     public static InfoDisplayDto BuildDisplay(GoalList list, IReadOnlyDictionary<string, GoalProgress> progressByGoalId,
         bool hasCookie, Func<string, string> nameLookup, Func<string, string> searchNameLookup,
-        IReadOnlyDictionary<string, AuctionOffer> offerByTag, Func<string, bool> isBazaarItem = null)
+        IReadOnlyDictionary<string, AuctionOffer> offerByTag, Func<string, bool> isBazaarItem = null, DateTime? now = null)
     {
+        var at = now ?? DateTime.UtcNow;
         var goals = list?.Goals ?? new();
         if (goals.Count == 0)
             return new InfoDisplayDto { Clear = true };
         var focus = goals.FirstOrDefault(g => g.Id == list.FocusId) ?? goals[0];
         var dto = new InfoDisplayDto();
         var focusProgress = Get(progressByGoalId, focus.Id);
-        dto.Title = $"§6§lGoal: §f{focus.Title} §7{focusProgress?.Done ?? 0}/{focusProgress?.Total ?? 0} steps";
-        if (focus.Plan is { } focusPlan)
-            dto.Title += $" §7[{focusPlan.Mode}{(focusPlan.Deadline is { } until ? $", until {until:HH:mm} UTC" : "")}]";
+        dto.Lines.Add(HeaderLine(focus, focusProgress, at));
         if (focus.BazaarFlip != null)
             dto.Lines.Add(BazaarFlipProgress.Line(focus, hasCookie, nameLookup(focus.RootItemTag) ?? focus.RootItemTag,
-                searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag, DateTime.UtcNow,
+                searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag, at,
                 BuyStepPrice(focusProgress)));
         else if (focusProgress != null)
         {
@@ -82,6 +81,64 @@ public static class GoalHud
             });
         }
         return dto;
+    }
+
+    /// <summary>
+    /// The mod shows hover text and runs clicks only on lines, never on the title, so the goal header is the first line.
+    /// </summary>
+    public const int HeaderLineCount = 1;
+
+    /// <summary>Hover of the header line, which asks to cancel the focused goal.</summary>
+    public const string CancelHover = "§eClick to cancel this goal\n§7You confirm it in chat first";
+
+    /// <summary>The lines below the goal header: steps, completion actions and the other goals.</summary>
+    public static IReadOnlyList<ChatPartDto> StepLines(this InfoDisplayDto dto)
+        => dto.Lines.Skip(HeaderLineCount).ToList();
+
+    /// <summary>A goal without activity for this long gets the red cancel marker on its header.</summary>
+    public static readonly TimeSpan CancelMarkerIdle = TimeSpan.FromMinutes(2);
+
+    /// <summary>Latest sign of life of a goal: creation, any step done or ordered, any bazaar order created or closed.</summary>
+    public static DateTime LastActivity(Goal goal)
+    {
+        var latest = goal.CreatedAt;
+        foreach (var time in StepTimes(goal.Root).Concat(OrderTimes(goal.BazaarFlip)))
+            if (time > latest)
+                latest = time;
+        return latest;
+    }
+
+    private static IEnumerable<DateTime> StepTimes(GoalStep step)
+    {
+        if (step == null)
+            yield break;
+        if (step.DoneAt is { } done)
+            yield return done;
+        if (step.OrderedAt is { } ordered)
+            yield return ordered;
+        foreach (var time in (step.Children ?? new()).SelectMany(StepTimes))
+            yield return time;
+    }
+
+    private static IEnumerable<DateTime> OrderTimes(BazaarFlipState state)
+    {
+        foreach (var order in state?.Orders ?? new())
+        {
+            if (order == null)
+                continue;
+            yield return order.CreatedAt;
+            if (order.ClosedAt is { } closed)
+                yield return closed;
+        }
+    }
+
+    private static ChatPartDto HeaderLine(Goal focus, GoalProgress progress, DateTime now)
+    {
+        var text = $"§6§lGoal: §f{focus.Title} §7{progress?.Done ?? 0}/{progress?.Total ?? 0} steps";
+        if (focus.Plan is { } plan)
+            text += $" §7[{plan.Mode}{(plan.Deadline is { } until ? $", until {until:HH:mm} UTC" : "")}]";
+        var idle = now - LastActivity(focus) >= CancelMarkerIdle;
+        return new ChatPartDto { Text = idle ? text + " §c[✖]" : text, Hover = CancelHover, OnClick = $"/cofl goal cancel {focus.Id}" };
     }
 
     /// <summary>

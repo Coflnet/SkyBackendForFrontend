@@ -355,7 +355,7 @@ public class BazaarFlipProgressTests
         {
             var progress = GoalProgressEvaluator.Evaluate(g, new Dictionary<string, long>(), new Dictionary<string, long>(), new HashSet<string>(), Now, top);
             return GoalHud.BuildDisplay(list, new Dictionary<string, GoalProgress> { [g.Id] = progress }, true, _ => "Wolf Tooth", _ => "Wolf Tooth", null)
-                .Lines[0].Text;
+                .StepLines()[0].Text;
         }
 
         Assert.That(Line(null), Is.EqualTo("§aPlace buy order: 4,383x Wolf Tooth §7@ §6376.6"));
@@ -372,7 +372,7 @@ public class BazaarFlipProgressTests
     {
         var progress = GoalProgressEvaluator.Evaluate(g, new Dictionary<string, long>(), new Dictionary<string, long>(), new HashSet<string>(), Now, top);
         var line = GoalHud.BuildDisplay(new GoalList { Goals = { g }, FocusId = g.Id }, new Dictionary<string, GoalProgress> { [g.Id] = progress },
-            true, _ => "Wolf Tooth", _ => "Wolf Tooth", null).Lines[0];
+            true, _ => "Wolf Tooth", _ => "Wolf Tooth", null).StepLines()[0];
         hover = line.Hover;
         return line.Text;
     }
