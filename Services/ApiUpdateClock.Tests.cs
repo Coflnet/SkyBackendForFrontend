@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Coflnet.Sky.Commands.Shared;
 using Coflnet.Sky.Core;
 using NUnit.Framework;
@@ -108,5 +109,124 @@ public class ApiUpdateClockTests
     {
         clock.ObserveArrival(Last.AddMinutes(1), Last.AddMinutes(1).AddSeconds(3));
         Assert.That(clock.FirstArrivalAfter(Last.AddSeconds(30)), Is.EqualTo(Last.AddMinutes(1).AddSeconds(3)));
+    }
+
+    private static LowPricedAuction Flip(DateTime start, DateTime findTime, bool preApi = false) => new()
+    {
+        Auction = new SaveAuction
+        {
+            Uuid = "abc",
+            Start = start,
+            FindTime = findTime,
+            Context = preApi ? new() { { "pre-api", "true" } } : new()
+        }
+    };
+
+    [Test]
+    public void ApiRelativeForApiFlipIsRelativeToArrivalOfItsUpdate()
+    {
+        var c = new ApiUpdateClock();
+        c.ObserveArrival(Last, Last.AddSeconds(6));
+
+        var result = c.ApiRelative(Flip(Last.AddSeconds(-100), Last), Last.AddSeconds(9));
+
+        Assert.That(result, Is.EqualTo(new ApiRelativeResult("api", 3d, false)));
+    }
+
+    [Test]
+    public void ApiRelativeForApiFlipUsesFallbackOffsetWithoutObservation()
+    {
+        var result = new ApiUpdateClock().ApiRelative(Flip(Last.AddSeconds(-100), Last), Last.AddSeconds(10));
+        Assert.That(result, Is.EqualTo(new ApiRelativeResult("api", 3d, false)));
+    }
+
+    [Test]
+    public void ApiRelativeMarksAuctionsStillInBed()
+    {
+        var notInBed = new ApiUpdateClock().ApiRelative(Flip(Last.AddSeconds(-15), Last), Last.AddSeconds(10));
+        var inBed = new ApiUpdateClock().ApiRelative(Flip(Last.AddSeconds(-5), Last), Last.AddSeconds(10));
+        Assert.That(notInBed, Is.EqualTo(new ApiRelativeResult("api", 3d, false)));
+        Assert.That(inBed, Is.EqualTo(new ApiRelativeResult("api", 3d, true)));
+    }
+
+    [Test]
+    public void ApiRelativeForPreApiIsNegativeBeforeArrival()
+    {
+        var start = Last.AddSeconds(5);
+        var arrival = clock.FirstArrivalAfter(start).Value;
+        Assert.That(arrival, Is.EqualTo(Last.AddSeconds(67)));
+
+        var result = clock.ApiRelative(Flip(start, default, true), arrival.AddSeconds(-5));
+
+        Assert.That(result, Is.EqualTo(new ApiRelativeResult("preapi", -5d, false)));
+    }
+
+    [Test]
+    public void ApiRelativeForPreApiInBedIsMarked()
+    {
+        var start = Last.AddSeconds(50); // arrival is 17s after start
+        Assert.That(clock.ApiRelative(Flip(start, default, true), start.AddSeconds(20))!.Value.InBed, Is.True);
+    }
+
+    [Test]
+    public void ApiRelativeOfRecheckFlipIsMeasuredLikePreApi()
+    {
+        var start = Last.AddSeconds(50); // arrival is 17s after start
+        var flip = Flip(start, default);
+        flip.Auction.Context["pre-api"] = "recheck";
+        var result = clock.ApiRelative(flip, start.AddSeconds(10))!.Value;
+        Assert.That(result.Source, Is.EqualTo("preapi"));
+        Assert.That(result.Seconds, Is.EqualTo(-7).Within(0.001));
+    }
+
+    [Test]
+    public void ApiRelativeOfRustFlipIsNull()
+    {
+        var flip = Flip(Last.AddSeconds(-100), Last);
+        flip.Finder = LowPricedAuction.FinderType.Rust;
+        Assert.That(clock.ApiRelative(flip, Last.AddSeconds(7)), Is.Null);
+    }
+
+    [Test]
+    public void FlipSourceClassifiesFlips()
+    {
+        var recheck = Flip(Last, Last);
+        recheck.Auction.Context["pre-api"] = "recheck";
+        var rust = Flip(Last, Last);
+        rust.Finder = LowPricedAuction.FinderType.Rust;
+        Assert.Multiple(() =>
+        {
+            Assert.That(ApiUpdateClock.FlipSource(Flip(Last, Last)), Is.EqualTo("api"));
+            Assert.That(ApiUpdateClock.FlipSource(Flip(Last, Last, true)), Is.EqualTo("preapi"));
+            Assert.That(ApiUpdateClock.FlipSource(recheck), Is.EqualTo("preapi"));
+            Assert.That(ApiUpdateClock.FlipSource(rust), Is.EqualTo("rust"));
+        });
+    }
+
+    [Test]
+    public void ApiRelativeForPreApiWithUnknownClockIsNull()
+    {
+        Assert.That(new ApiUpdateClock().ApiRelative(Flip(Last, default, true), DateTime.UtcNow), Is.Null);
+    }
+
+    [TestCase(0d, true)]
+    [TestCase(120d, true)]
+    [TestCase(-120d, true)]
+    [TestCase(120.1, false)]
+    [TestCase(-120.1, false)]
+    [TestCase(-7200d, false)]
+    public void PlausibleIsWithinTwoMinutes(double seconds, bool expected)
+    {
+        Assert.That(ApiUpdateClock.Plausible(seconds), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void RelativeBucketsAreAscendingAndCoverTheLimits()
+    {
+        Assert.That(ApiUpdateClock.RelativeBuckets, Is.Ordered.Ascending);
+        ApiUpdateClock.RelativeBuckets[0] = 5;
+        Assert.That(ApiUpdateClock.RelativeBuckets[0], Is.EqualTo(-120));
+        Assert.That(ApiUpdateClock.RelativeBuckets.First(), Is.EqualTo(-ApiUpdateClock.PlausibleLimitSeconds));
+        Assert.That(ApiUpdateClock.RelativeBuckets.Last(), Is.EqualTo(ApiUpdateClock.PlausibleLimitSeconds));
     }
 }

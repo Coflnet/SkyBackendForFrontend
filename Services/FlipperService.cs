@@ -52,6 +52,16 @@ namespace Coflnet.Sky.Commands.Shared
             {
                 Buckets = Prometheus.Histogram.LinearBuckets(start: 1, width: 2, count: 10)
             });
+        internal static Prometheus.Histogram releaseRelativeApi = Prometheus.Metrics.CreateHistogram("sky_commands_flip_release_relative_api_seconds",
+            "Seconds a flip was released to a tier relative to the arrival of the api update data (negative = before). One observation per flip, tier and pod: for unique flips use max across pods or a single pod, not a sum",
+            new Prometheus.HistogramConfiguration()
+            {
+                LabelNames = ["tier", "source", "bed"],
+                Buckets = ApiUpdateClock.RelativeBuckets
+            });
+        internal static Prometheus.Counter releaseRelativeApiOutliers = Prometheus.Metrics.CreateCounter("sky_commands_flip_release_relative_api_outliers_total",
+            "Flip releases that were implausibly far (over 120s) from the api arrival and are not part of the histogram",
+            new Prometheus.CounterConfiguration() { LabelNames = ["tier", "source", "direction"] });
         static Prometheus.Histogram releaseTiming = Prometheus.Metrics.CreateHistogram("sky_commands_flip_release_seconds", "Seconds from auction FindTime until the flip was released to a tier",
             new Prometheus.HistogramConfiguration()
             {
@@ -463,20 +473,40 @@ namespace Coflnet.Sky.Commands.Shared
         private delegate Task TierDelivery(ConcurrentDictionary<long, FlipConWrapper> subscribers);
 
         /// <summary>Delivers to one tier and returns the time of the release</summary>
-        private async Task<DateTime> ReleaseTo(AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers, TierDelivery deliver, DateTime findTime)
+        private async Task<DateTime> ReleaseTo(AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers, TierDelivery deliver, DateTime findTime, LowPricedAuction flip = null)
         {
             await deliver(subscribers).ConfigureAwait(false);
-            releaseTiming.WithLabels(tier.ToString()).Observe((DateTime.UtcNow - findTime).TotalSeconds);
-            return DateTime.UtcNow;
+            var releasedAt = DateTime.UtcNow;
+            releaseTiming.WithLabels(tier.ToString()).Observe((releasedAt - findTime).TotalSeconds);
+            ObserveReleaseRelativeApi(tier, flip, releasedAt);
+            return releasedAt;
+        }
+
+        internal void ObserveReleaseRelativeApi(AccountTier tier, LowPricedAuction flip, DateTime releasedAt)
+        {
+            try
+            {
+                var result = flip == null ? null : ApiClock.ApiRelative(flip, releasedAt);
+                if (result is not ApiRelativeResult r)
+                    return;
+                if (!ApiUpdateClock.Plausible(r.Seconds))
+                    releaseRelativeApiOutliers.WithLabels(tier.ToString(), r.Source, r.Seconds < 0 ? "early" : "late").Inc();
+                else
+                    releaseRelativeApi.WithLabels(tier.ToString(), r.Source, r.InBed ? "true" : "false").Observe(r.Seconds);
+            }
+            catch (Exception)
+            {
+                // metrics are best effort
+            }
         }
 
         private async Task<DateTime> HandOffAndRelease(long uid, AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers,
             TierDelivery deliver, DateTime findTime, DateTime releasedToHigherAt, TimeSpan? minHold = null,
-            List<StepDecision> decisions = null)
+            List<StepDecision> decisions = null, LowPricedAuction flip = null)
         {
             var decision = await Handoff.AwaitReleaseTo(uid, tier, releasedToHigherAt, minHold).ConfigureAwait(false);
             decisions?.Add(new StepDecision(tier, decision));
-            return await ReleaseTo(tier, subscribers, deliver, findTime).ConfigureAwait(false);
+            return await ReleaseTo(tier, subscribers, deliver, findTime, flip).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -532,7 +562,7 @@ namespace Coflnet.Sky.Commands.Shared
 
             var uid = flip.UId;
             InCascade[uid] = DateTime.UtcNow;
-            var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => AddLowPriced(flip, subs), flip.Auction.FindTime);
+            var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => AddLowPriced(flip, subs), flip.Auction.FindTime, flip);
             RunDetached(() => RunLowerCascade(flip, isPreApi, releasedAt), uid, "delivering low priced auction to lower tiers");
         }
 
@@ -549,7 +579,7 @@ namespace Coflnet.Sky.Commands.Shared
                 steps.Add(new StepDecision(AccountTier.NONE, await Handoff.AwaitReleaseTo(uid, AccountTier.NONE, releasedAt)));
                 RecordInHistory(flip);
                 var forFree = SoldAuctions.ContainsKey(uid) ? CopyWithProp(flip, "sold", "y") : flip;
-                await ReleaseTo(AccountTier.NONE, SlowSubs, subs => AddLowPriced(forFree, subs), flip.Auction.FindTime);
+                await ReleaseTo(AccountTier.NONE, SlowSubs, subs => AddLowPriced(forFree, subs), flip.Auction.FindTime, flip);
                 if (audited)
                     MatchAudit.Schedule(uid, isPreApi ? HandoffAudit.SourcePreApi : HandoffAudit.SourceApi, steps);
             }
@@ -588,10 +618,10 @@ namespace Coflnet.Sky.Commands.Shared
             if (isPreApi)
                 releasedAt = await WaitForApiVisibility(flip.Auction.Start, releasedAt);
             if (flip.Finder == LowPricedAuction.FinderType.Rust)
-                releasedAt = await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime);
+                releasedAt = await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime, flip);
             else
-                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt, isPreApi ? TimeSpan.FromSeconds(1) : null, steps);
-            return await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt, null, steps);
+                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt, isPreApi ? TimeSpan.FromSeconds(1) : null, steps, flip);
+            return await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt, null, steps, flip);
         }
 
         private static async Task<DateTime> WaitForApiVisibility(DateTime auctionStart, DateTime releasedAt)
