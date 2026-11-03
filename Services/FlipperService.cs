@@ -59,6 +59,7 @@ namespace Coflnet.Sky.Commands.Shared
                 LabelNames = ["tier", "source", "bed"],
                 Buckets = ApiUpdateClock.RelativeBuckets
             });
+        internal static RelativeSecondsCounters releaseRelativeApiSums = new("sky_commands_flip_release_relative_api");
         internal static Prometheus.Counter releaseRelativeApiOutliers = Prometheus.Metrics.CreateCounter("sky_commands_flip_release_relative_api_outliers_total",
             "Flip releases that were implausibly far (over 120s) from the api arrival and are not part of the histogram",
             new Prometheus.CounterConfiguration() { LabelNames = ["tier", "source", "direction"] });
@@ -492,12 +493,18 @@ namespace Coflnet.Sky.Commands.Shared
                 if (!ApiUpdateClock.Plausible(r.Seconds))
                     releaseRelativeApiOutliers.WithLabels(tier.ToString(), r.Source, r.Seconds < 0 ? "early" : "late").Inc();
                 else
-                    releaseRelativeApi.WithLabels(tier.ToString(), r.Source, r.InBed ? "true" : "false").Observe(r.Seconds);
+                    ObserveRelease(tier.ToString(), r);
             }
             catch (Exception)
             {
                 // metrics are best effort
             }
+        }
+
+        private static void ObserveRelease(string tier, ApiRelativeResult r)
+        {
+            releaseRelativeApi.WithLabels(tier, r.Source, r.InBed ? "true" : "false").Observe(r.Seconds);
+            releaseRelativeApiSums.Add(tier, r.Source, r.Seconds);
         }
 
         private async Task<DateTime> HandOffAndRelease(long uid, AccountTier tier, ConcurrentDictionary<long, FlipConWrapper> subscribers,

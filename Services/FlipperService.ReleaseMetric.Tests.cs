@@ -40,6 +40,33 @@ public class FlipperServiceReleaseMetricTests
     }
 
     [Test]
+    public void NegativeObservationOnlyIncreasesEarlyCounterAndPositiveOnlyLate()
+    {
+        var sums = FlipperService.releaseRelativeApiSums;
+        var (early, late) = (sums.Early("PREMIUM_PLUS", "preapi"), sums.Late("PREMIUM_PLUS", "preapi"));
+
+        service.ObserveReleaseRelativeApi(AccountTier.PREMIUM_PLUS, PreApiFlip(), Last.AddSeconds(62));
+        Assert.That(sums.Early("PREMIUM_PLUS", "preapi"), Is.EqualTo(early + 5).Within(0.001));
+        Assert.That(sums.Late("PREMIUM_PLUS", "preapi"), Is.EqualTo(late));
+
+        service.ObserveReleaseRelativeApi(AccountTier.PREMIUM_PLUS, PreApiFlip(), Last.AddSeconds(70));
+        Assert.That(sums.Early("PREMIUM_PLUS", "preapi"), Is.EqualTo(early + 5).Within(0.001));
+        Assert.That(sums.Late("PREMIUM_PLUS", "preapi"), Is.EqualTo(late + 3).Within(0.001));
+    }
+
+    [Test]
+    public void ImplausibleAndNullFlipsDoNotTouchTheCounters()
+    {
+        var sums = FlipperService.releaseRelativeApiSums;
+        var (early, late) = (sums.Early("PREMIUM", "preapi"), sums.Late("PREMIUM", "preapi"));
+
+        service.ObserveReleaseRelativeApi(AccountTier.PREMIUM, PreApiFlip(), Last.AddHours(3));
+        service.ObserveReleaseRelativeApi(AccountTier.PREMIUM, null, Last.AddSeconds(70));
+
+        Assert.That((sums.Early("PREMIUM", "preapi"), sums.Late("PREMIUM", "preapi")), Is.EqualTo((early, late)));
+    }
+
+    [Test]
     public void NullFlipIsSkipped()
     {
         var before = Read("PREMIUM", "preapi", "false");
