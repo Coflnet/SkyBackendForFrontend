@@ -232,7 +232,7 @@ namespace Coflnet.Sky.Commands.Tests
         }
 
         [Test]
-        public async Task PreApiFlipIsAuditedButPublicBedIsNot()
+        public async Task PreApiFlipIsAudited()
         {
             var service = CreateFastService();
             var audits = 0;
@@ -320,23 +320,20 @@ namespace Coflnet.Sky.Commands.Tests
         }
 
         [Test]
-        public async Task PreApiBedStaysPremPlusExclusiveEvenWhenApiUpdateLandsInsideBed()
+        public async Task PreApiFlipWhoseApiUpdateLandsInsideBedStillWaitsForBedEnd()
         {
-            // regression: beds whose next api update fell inside the bed were sent to premium and starter right away,
-            // but the public api never contains auctions that are still in their bed
             var service = CreateFastService();
             var flip = CreateCascadeFlip(1006, preApi: true);
-            flip.Auction.Start = DateTime.UtcNow - TimeSpan.FromSeconds(20); // purchasable after ~0.5s
-            service.ApiClock.Set(flip.Auction.Start - TimeSpan.FromSeconds(59.7)); // api update 300ms after start
+            var start = flip.Auction.Start = DateTime.UtcNow - TimeSpan.FromSeconds(19);
+            service.ApiClock.ObserveArrival(start + TimeSpan.FromMilliseconds(100), start + TimeSpan.FromMilliseconds(300)); // api update arrives right after start
             var cons = await AddAllTiers(service);
 
-            await service.DeliverLowPricedAuction(flip);
-            await Task.Delay(200);
-
-            Assert.That(cons[0].BatchCount, Is.EqualTo(1));
-            Assert.That(cons[1].BatchCount, Is.Zero);
-            Assert.That(cons[2].BatchCount, Is.Zero);
+            await service.DeliverLowPricedAuction(flip).WaitAsync(TimeSpan.FromSeconds(5));
             await WaitAll(cons);
+
+            Assert.That(cons[0].ReceivedAt, Is.LessThan(start + TimeSpan.FromSeconds(20.5)));
+            Assert.That(cons[1].ReceivedAt, Is.GreaterThanOrEqualTo(start + TimeSpan.FromSeconds(20.5)));
+            Assert.That(cons[2].ReceivedAt, Is.GreaterThanOrEqualTo(start + TimeSpan.FromSeconds(20.5)));
             Assert.That(cons[1].LastBatchFlip.AdditionalProps.ContainsKey("pubbed"), Is.False);
             await WaitCascades(service);
             foreach (var c in cons)
@@ -344,12 +341,52 @@ namespace Coflnet.Sky.Commands.Tests
         }
 
         [Test]
-        public async Task NonPublicBedPreApiFlipWaitsForApiVisibility()
+        public async Task PreApiFlipInstanceWaitsForBedEndBeforePremium()
+        {
+            var service = CreateFastService();
+            var start = DateTime.UtcNow - TimeSpan.FromSeconds(20); // visible after ~0.5s
+            var flip = new FlipInstance
+            {
+                Auction = new SaveAuction { UId = 1010, Uuid = "uuid1010", FindTime = DateTime.UtcNow, Start = start, StartingBid = 1000 },
+                Finder = LowPricedAuction.FinderType.FLIPPER
+            };
+            var premium = new MockConnection();
+            service.AddConnection(premium, false);
+
+            var cascade = service.RunLowerCascade(flip, DateTime.UtcNow, isPreApi: true);
+            await Task.Delay(200);
+            Assert.That(premium.LastFlip, Is.Null, "premium got the flip while the bed was still running");
+
+            await cascade.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.That(premium.LastFlip, Is.Not.Null);
+            service.RemoveConnection(premium);
+        }
+
+        [Test]
+        public async Task NonPreApiFlipInstanceReachesPremiumWithoutBedWait()
+        {
+            var service = CreateFastService();
+            var flip = new FlipInstance
+            {
+                Auction = new SaveAuction { UId = 1011, Uuid = "uuid1011", FindTime = DateTime.UtcNow, Start = DateTime.UtcNow, StartingBid = 1000 },
+                Finder = LowPricedAuction.FinderType.FLIPPER
+            };
+            var premium = new MockConnection();
+            service.AddConnection(premium, false);
+
+            await service.RunLowerCascade(flip, DateTime.UtcNow).WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.That(premium.LastFlip, Is.Not.Null);
+            service.RemoveConnection(premium);
+        }
+
+        [Test]
+        public async Task PreApiFlipWaitsForApiVisibility()
         {
             var service = CreateFastService();
             var flip = CreateCascadeFlip(1007, preApi: true);
             flip.Auction.Start = DateTime.UtcNow - TimeSpan.FromSeconds(20); // visible after ~0.5s
-            service.ApiClock.Set(flip.Auction.Start - TimeSpan.FromSeconds(20)); // next update 40s after start
+            service.ApiClock.SetLastUpdated(flip.Auction.Start - TimeSpan.FromSeconds(20)); // next update 40s after start
             var cons = await AddAllTiers(service);
 
             await service.DeliverLowPricedAuction(flip);
@@ -361,6 +398,52 @@ namespace Coflnet.Sky.Commands.Tests
             await WaitCascades(service);
             foreach (var c in cons)
                 service.RemoveConnection(c);
+        }
+
+        [Test]
+        public void ObserveApiArrivalFeedsClockFromFindTimeAndFindDelay()
+        {
+            var service = CreateFastService();
+            var flip = CreateCascadeFlip(1008);
+            var lastUpdated = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            flip.Auction.FindTime = lastUpdated;
+            flip.Auction.Context["upT"] = lastUpdated.ToString();
+            flip.Auction.Context["fT"] = TimeSpan.FromSeconds(6.5).ToString();
+
+            service.ObserveApiArrival(flip);
+
+            Assert.That(service.ApiClock.ArrivalOf(lastUpdated), Is.EqualTo(lastUpdated.AddSeconds(6.5)));
+        }
+
+        [Test]
+        public void ObserveApiArrivalIgnoresRustFlips()
+        {
+            var service = CreateFastService();
+            var flip = CreateCascadeFlip(1010);
+            flip.Finder = LowPricedAuction.FinderType.Rust;
+            var receivedAt = new DateTime(2026, 1, 1, 12, 0, 17, DateTimeKind.Utc);
+            flip.Auction.FindTime = receivedAt; // rust flips carry the receive time, not the api stamp
+            flip.Auction.Context["upT"] = receivedAt.ToString();
+            flip.Auction.Context["fT"] = TimeSpan.Zero.ToString();
+
+            service.ObserveApiArrival(flip);
+
+            Assert.That(service.ApiClock.LastUpdate, Is.Null);
+        }
+
+        [Test]
+        public void ObserveApiArrivalIgnoresMissingOrBrokenContext()
+        {
+            var service = CreateFastService();
+            var flip = CreateCascadeFlip(1009);
+            flip.Auction.Context["upT"] = "x";
+            flip.Auction.Context["fT"] = "not a time";
+
+            service.ObserveApiArrival(flip);
+            flip.Auction.Context.Remove("fT");
+            service.ObserveApiArrival(flip);
+
+            Assert.That(service.ApiClock.LastUpdate, Is.Null);
         }
 
         [Test]

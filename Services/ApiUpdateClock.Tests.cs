@@ -14,48 +14,99 @@ public class ApiUpdateClockTests
     public void Setup()
     {
         clock = new ApiUpdateClock();
-        clock.Set(Last);
+        clock.SetLastUpdated(Last);
     }
 
     [Test]
     public void UnknownBeforeFirstSet()
     {
-        Assert.That(new ApiUpdateClock().FirstUpdateAfter(Last), Is.Null);
+        Assert.That(new ApiUpdateClock().FirstArrivalAfter(Last), Is.Null);
     }
 
     [Test]
-    public void TimeEqualToLastUpdateReturnsLastUpdate()
+    public void SetSubtractsTheTenSecondsTheApiTimeEndpointAdds()
     {
-        Assert.That(clock.FirstUpdateAfter(Last), Is.EqualTo(Last));
+        var c = new ApiUpdateClock();
+        c.Set(Last.AddSeconds(10));
+        Assert.That(c.LastUpdate, Is.EqualTo(Last));
     }
 
     [Test]
-    public void TimeJustAfterReturnsNextMinute()
+    public void GridNeverMovesBackwards()
     {
-        Assert.That(clock.FirstUpdateAfter(Last.AddMilliseconds(1)), Is.EqualTo(Last.AddMinutes(1)));
+        clock.SetLastUpdated(Last.AddMinutes(-1));
+        Assert.That(clock.LastUpdate, Is.EqualTo(Last));
+    }
+
+    [Test]
+    public void FallbackOffsetIsSevenSecondsWhenNothingObserved()
+    {
+        Assert.That(clock.ArrivalOf(Last), Is.EqualTo(Last.AddSeconds(7)));
+        Assert.That(clock.FirstArrivalAfter(Last), Is.EqualTo(Last.AddSeconds(7)));
+    }
+
+    [Test]
+    public void TimeJustAfterReturnsArrivalOfNextMinute()
+    {
+        Assert.That(clock.FirstArrivalAfter(Last.AddMilliseconds(1)), Is.EqualTo(Last.AddMinutes(1).AddSeconds(7)));
     }
 
     [Test]
     public void TimeSeveralMinutesLater()
     {
-        Assert.That(clock.FirstUpdateAfter(Last.AddMinutes(5).AddSeconds(10)), Is.EqualTo(Last.AddMinutes(6)));
-    }
-
-    [TestCase(15, true)]
-    [TestCase(21, true)]
-    [TestCase(22, false)]
-    [TestCase(40, false)]
-    public void PublicBedWhenUpdateLandsInsideBedWindow(int updateAfterStartSeconds, bool expected)
-    {
-        var start = Last.AddMinutes(10).AddSeconds(60 - updateAfterStartSeconds);
-        // the next update lands updateAfterStartSeconds after start
-        var auction = new SaveAuction { Start = start };
-        Assert.That(clock.IsPublicBed(auction, TimeSpan.FromSeconds(1)), Is.EqualTo(expected));
+        Assert.That(clock.FirstArrivalAfter(Last.AddMinutes(5).AddSeconds(10)), Is.EqualTo(Last.AddMinutes(6).AddSeconds(7)));
     }
 
     [Test]
-    public void NotPublicBedWhenUnknown()
+    public void ObserveArrivalKeepsEarliestPerUpdate()
     {
-        Assert.That(new ApiUpdateClock().IsPublicBed(new SaveAuction { Start = Last }, TimeSpan.FromSeconds(1)), Is.False);
+        clock.ObserveArrival(Last, Last.AddSeconds(9));
+        clock.ObserveArrival(Last, Last.AddSeconds(6));
+        clock.ObserveArrival(Last, Last.AddSeconds(8));
+        Assert.That(clock.ArrivalOf(Last), Is.EqualTo(Last.AddSeconds(6)));
+    }
+
+    [Test]
+    public void ObserveArrivalMovesGridToNewestUpdate()
+    {
+        clock.ObserveArrival(Last.AddMinutes(3), Last.AddMinutes(3).AddSeconds(5));
+        Assert.That(clock.LastUpdate, Is.EqualTo(Last.AddMinutes(3)));
+    }
+
+    [Test]
+    public void OffsetIsMedianOfPerUpdateOffsets()
+    {
+        clock.ObserveArrival(Last, Last.AddSeconds(5));
+        clock.ObserveArrival(Last.AddMinutes(1), Last.AddMinutes(1).AddSeconds(6));
+        clock.ObserveArrival(Last.AddMinutes(2), Last.AddMinutes(2).AddSeconds(20));
+        Assert.That(clock.ArrivalOffset, Is.EqualTo(TimeSpan.FromSeconds(6)));
+        // unobserved update uses the estimate
+        Assert.That(clock.ArrivalOf(Last.AddMinutes(3)), Is.EqualTo(Last.AddMinutes(3).AddSeconds(6)));
+    }
+
+    [Test]
+    public void ImplausibleOffsetsAreIgnoredForTheEstimate()
+    {
+        clock.ObserveArrival(Last, Last.AddSeconds(-3));
+        clock.ObserveArrival(Last.AddMinutes(1), Last.AddMinutes(1).AddSeconds(45));
+        Assert.That(clock.ArrivalOffset, Is.EqualTo(ApiUpdateClock.FallbackArrivalOffset));
+    }
+
+    [Test]
+    public void OnlyRecentUpdatesAreKept()
+    {
+        for (var i = 0; i < 12; i++)
+            clock.ObserveArrival(Last.AddMinutes(i), Last.AddMinutes(i).AddSeconds(4));
+        // the oldest update was forgotten, falls back to the estimate (same value here, so shift an offset to tell apart)
+        clock.ObserveArrival(Last.AddMinutes(12), Last.AddMinutes(12).AddSeconds(10));
+        Assert.That(clock.ArrivalOf(Last), Is.EqualTo(Last.AddSeconds(4)));
+        Assert.That(clock.ArrivalOf(Last.AddMinutes(12)), Is.EqualTo(Last.AddMinutes(12).AddSeconds(10)));
+    }
+
+    [Test]
+    public void FirstArrivalAfterUsesObservedArrival()
+    {
+        clock.ObserveArrival(Last.AddMinutes(1), Last.AddMinutes(1).AddSeconds(3));
+        Assert.That(clock.FirstArrivalAfter(Last.AddSeconds(30)), Is.EqualTo(Last.AddMinutes(1).AddSeconds(3)));
     }
 }

@@ -80,8 +80,6 @@ namespace Coflnet.Sky.Commands.Shared
         /// <summary>Measures whether the handoff step was long enough, see <see cref="HandoffAudit"/></summary>
         public HandoffAudit MatchAudit { get; set; }
         public ApiUpdateClock ApiClock { get; set; }
-        /// <summary>Tolerance when deciding if an auction showed up in the public api right away</summary>
-        public static readonly TimeSpan PublicBedMargin = TimeSpan.FromSeconds(1);
 
         public FlipperService(IConfiguration config, ILogger<FlipperService> logger, IFlipMatchTracker matchTracker = null, ApiUpdateClock apiClock = null)
         {
@@ -377,17 +375,42 @@ namespace Coflnet.Sky.Commands.Shared
             var uid = flip.UId;
             InCascade[uid] = DateTime.UtcNow;
             var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => NotifyAll(flip, subs), flip.Auction.FindTime);
-            RunDetached(() => RunLowerCascade(flip, releasedAt), uid, "delivering flip to lower tiers");
+            var isPreApi = flip.Auction.Context?.ContainsKey("pre-api") ?? true;
+            RunDetached(() => RunLowerCascade(flip, releasedAt, isPreApi), uid, "delivering flip to lower tiers");
         }
 
-        internal async Task RunLowerCascade(FlipInstance flip, DateTime releasedAt)
+        /// <summary>
+        /// Feeds the api clock with when this instance first got an auction of an api update.
+        /// FindTime is the lastUpdated stamp (the upT context value is culture formatted and loses precision),
+        /// fT is the time between lastUpdated and finding the auction.
+        /// Rust flips are skipped: their FindTime is the receive time, not an api update stamp.
+        /// </summary>
+        internal void ObserveApiArrival(LowPricedAuction flip)
+        {
+            if (flip.Finder == LowPricedAuction.FinderType.Rust)
+                return;
+            var auction = flip.Auction;
+            var context = auction.Context;
+            if (context == null || !context.ContainsKey("upT") || !context.TryGetValue("fT", out var found))
+                return;
+            if (!TimeSpan.TryParse(found, System.Globalization.CultureInfo.InvariantCulture, out var findDelay))
+                return;
+            if (auction.FindTime == default)
+                return;
+            ApiClock.ObserveArrival(auction.FindTime, auction.FindTime + findDelay);
+        }
+
+        /// <param name="isPreApi">pre-api beds are premium plus exclusive until they end, so lower tiers wait for the api visibility</param>
+        internal async Task RunLowerCascade(FlipInstance flip, DateTime releasedAt, bool isPreApi = false)
         {
             try
             {
                 TierDelivery deliver = subs => NotifyAll(flip, subs);
                 var uid = flip.UId;
                 var findTime = flip.Auction.FindTime;
-                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt);
+                if (isPreApi)
+                    releasedAt = await WaitForApiVisibility(flip.Auction.Start, releasedAt);
+                releasedAt = await HandOffAndRelease(uid, AccountTier.PREMIUM, Subs, deliver, findTime, releasedAt, isPreApi ? TimeSpan.FromSeconds(1) : null);
                 releasedAt = await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt);
                 await Handoff.AwaitReleaseTo(uid, AccountTier.NONE, releasedAt);
                 if (SoldAuctions.ContainsKey(uid))
@@ -502,29 +525,26 @@ namespace Coflnet.Sky.Commands.Shared
             var isPreApi = flip.Auction.Context?.ContainsKey("pre-api") ?? true;
             if (isPreApi)
                 await RunPreApiHandler(flip);
+            else
+                ObserveApiArrival(flip);
             if (flip.Auction.Context != null)
                 flip.Auction.Context["csh"] = (DateTime.UtcNow - flip.Auction.FindTime).ToString();
 
-            // The public api update never contains auctions still in their bed (measured 2026-11-02),
-            // so pre-api beds stay exclusive to prem+ until they become purchasable.
-            var isPublicBed = false;
             var uid = flip.UId;
             InCascade[uid] = DateTime.UtcNow;
             var releasedAt = await ReleaseTo(AccountTier.PREMIUM_PLUS, SuperSubs, subs => AddLowPriced(flip, subs), flip.Auction.FindTime);
-            RunDetached(() => RunLowerCascade(flip, isPreApi, isPublicBed, releasedAt), uid, "delivering low priced auction to lower tiers");
+            RunDetached(() => RunLowerCascade(flip, isPreApi, releasedAt), uid, "delivering low priced auction to lower tiers");
         }
 
-        internal async Task RunLowerCascade(LowPricedAuction flip, bool isPreApi, bool isPublicBed, DateTime releasedAt)
+        internal async Task RunLowerCascade(LowPricedAuction flip, bool isPreApi, DateTime releasedAt)
         {
             try
             {
                 TierDelivery deliver = subs => AddLowPriced(flip, subs);
                 var uid = flip.UId;
-                var audited = !isPublicBed && MatchAudit?.TryClaim(uid) == true;
+                var audited = MatchAudit?.TryClaim(uid) == true;
                 var steps = new List<StepDecision>();
-                releasedAt = isPublicBed
-                    ? await ReleasePublicBed(flip, deliver)
-                    : await ReleaseToPaidTiers(flip, isPreApi, deliver, releasedAt, steps);
+                releasedAt = await ReleaseToPaidTiers(flip, isPreApi, deliver, releasedAt, steps);
 
                 steps.Add(new StepDecision(AccountTier.NONE, await Handoff.AwaitReleaseTo(uid, AccountTier.NONE, releasedAt)));
                 RecordInHistory(flip);
@@ -561,25 +581,12 @@ namespace Coflnet.Sky.Commands.Shared
             }
         }
 
-        /// <summary>
-        /// The auction is visible in the public api right after it started, so premium and starter can't be held back.
-        /// Free users still wait for the api update that makes it public.
-        /// </summary>
-        private async Task<DateTime> ReleasePublicBed(LowPricedAuction flip, TierDelivery deliver)
-        {
-            var findTime = flip.Auction.FindTime;
-            await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime);
-            var releasedAt = await ReleaseTo(AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime);
-            var publicAt = ApiClock.FirstUpdateAfter(flip.Auction.Start);
-            return publicAt.HasValue && publicAt.Value > releasedAt ? publicAt.Value : releasedAt;
-        }
-
         private async Task<DateTime> ReleaseToPaidTiers(LowPricedAuction flip, bool isPreApi, TierDelivery deliver, DateTime releasedAt, List<StepDecision> steps)
         {
             var uid = flip.UId;
             var findTime = flip.Auction.FindTime;
             if (isPreApi)
-                releasedAt = await WaitForApiVisibility(flip, releasedAt);
+                releasedAt = await WaitForApiVisibility(flip.Auction.Start, releasedAt);
             if (flip.Finder == LowPricedAuction.FinderType.Rust)
                 releasedAt = await ReleaseTo(AccountTier.PREMIUM, Subs, deliver, findTime);
             else
@@ -587,9 +594,9 @@ namespace Coflnet.Sky.Commands.Shared
             return await HandOffAndRelease(uid, AccountTier.STARTER_PREMIUM, StarterSubs, deliver, findTime, releasedAt, null, steps);
         }
 
-        private static async Task<DateTime> WaitForApiVisibility(LowPricedAuction flip, DateTime releasedAt)
+        private static async Task<DateTime> WaitForApiVisibility(DateTime auctionStart, DateTime releasedAt)
         {
-            var visibleAt = flip.Auction.Start + TimeSpan.FromSeconds(20.5);
+            var visibleAt = auctionStart + TimeSpan.FromSeconds(20.5);
             var waitTime = visibleAt - DateTime.UtcNow;
             if (waitTime > TimeSpan.Zero)
                 await Task.Delay(waitTime).ConfigureAwait(false);

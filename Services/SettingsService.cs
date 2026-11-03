@@ -27,10 +27,12 @@ namespace Coflnet.Sky.Commands.Shared
         public async Task<ChannelMessageQueue> GetAndSubscribe<T>(string userId, string key, Action<T> update, Func<T> defaultGetter = null)
         {
             for (int i = 0; i < 3; i++)
+            {
+                Task<ChannelMessageQueue> subTask = null;
                 try
                 {
                     // subscribe, get then process subscription to not loose any update
-                    var subTask = con?.GetSubscriber().SubscribeAsync(RedisChannel.Literal(GetSubKey(userId, key)));
+                    subTask = con?.GetSubscriber().SubscribeAsync(RedisChannel.Literal(GetSubKey(userId, key)));
                     T val = await GetCurrentValue(userId, key, defaultGetter);
                     update(val);
 
@@ -46,11 +48,28 @@ namespace Coflnet.Sky.Commands.Shared
                 }
                 catch (Exception e)
                 {
+                    // the subscription of this attempt would stay active forever otherwise
+                    UnsubscribeQuietly(subTask);
                     if (i == 2)
                         throw new Exception("Could not subscribe to setting ", e);
                     await Task.Delay(150 * (i + 1));
                 }
+            }
             throw new Exception("Could not subscribe to setting (should not be reached)");
+        }
+
+        /// <summary>
+        /// Unsubscribes a subscription that is not going to be used, never throws
+        /// </summary>
+        public static void UnsubscribeQuietly(Task<ChannelMessageQueue> pending)
+        {
+            if (pending == null)
+                return;
+            pending.ContinueWith(t =>
+            {
+                if (t.IsCompletedSuccessfully)
+                    t.Result?.Unsubscribe();
+            }, TaskScheduler.Default);
         }
 
         public async Task<T> GetCurrentValue<T>(string userId, string key, Func<T> defaultGetter)
