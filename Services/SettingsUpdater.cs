@@ -113,10 +113,7 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     return DescriptionSetting.Default;
                 });
-                // clean up "clear <name>"/"rm <name>" junk stored by the old buggy parsing, even when
-                // a different lore setting is being updated right now
-                CleanupJunkEntries(current.DisableInfoIn);
-                var newVal = UpdateValueOnObject(value, doc.RealName, current);
+                var newVal = ApplyLoreUpdate(current, key, value);
                 await settingsService.UpdateSetting(con.UserId.ToString(), "description", current);
                 return newVal;
             }
@@ -207,7 +204,47 @@ namespace Coflnet.Sky.Commands.Shared
                 .ToList();
         }
 
-        public async Task<object> GetCurrentValue(IFlipConnection con, string key)
+        /// <summary>
+        /// True when the key changes a <see cref="DescriptionSetting"/> (item lore)
+        /// </summary>
+        public bool IsLoreKey(string key) => options.TryGetValue(key, out var doc) && doc.Prefix == "lore";
+
+        /// <summary>
+        /// True when the key changes a <see cref="PrivacySettings"/> value, which are bound to an account
+        /// </summary>
+        public bool IsPrivacyKey(string key) => options.TryGetValue(key, out var doc) && doc.Prefix == "privacy";
+
+        /// <summary>
+        /// Applies a lore setting change to <paramref name="current"/> without needing a user account.
+        /// </summary>
+        /// <returns>The new value of the setting</returns>
+        public object ApplyLoreUpdate(DescriptionSetting current, string key, string value)
+        {
+            if (!options.TryGetValue(key, out var doc) || doc.Prefix != "lore")
+                throw new CoflnetException("invalid_setting", $"the setting {key} is not a lore setting");
+            // clean up "clear <name>"/"rm <name>" junk stored by the old buggy parsing, even when
+            // a different lore setting is being updated right now
+            CleanupJunkEntries(current.DisableInfoIn);
+            return UpdateValueOnObject(value, doc.RealName, current);
+        }
+
+        /// <summary>
+        /// The user id of the connection or null when it is not signed in
+        /// </summary>
+        private static string TryGetUserId(IFlipConnection con)
+        {
+            try
+            {
+                return con.UserId;
+            }
+            catch (CoflnetException e) when (e.Slug == ErrorSlugs.NoLogin)
+            {
+                return null;
+            }
+        }
+
+        // instanceDescription: lore values shown to signed-out users, the defaults when null
+        public async Task<object> GetCurrentValue(IFlipConnection con, string key, DescriptionSetting instanceDescription = null)
         {
             if (key == "blacklist")
                 return con.Settings.BlackList;
@@ -234,14 +271,20 @@ namespace Coflnet.Sky.Commands.Shared
             }
             else if (doc.Prefix == "privacy")
             {
+                var userId = TryGetUserId(con);
+                if (userId == null)
+                    return GetValueOnObject(doc.RealName, PrivacySettings.Default);
                 var settingsService = DiHandler.GetService<SettingsService>();
-                var current = await settingsService.GetCurrentValue(con.UserId.ToString(), "privacySettings", () => PrivacySettings.Default);
+                var current = await settingsService.GetCurrentValue(userId, "privacySettings", () => PrivacySettings.Default);
                 return GetValueOnObject(doc.RealName, current);
             }
             else if (doc.Prefix == "lore")
             {
+                var userId = TryGetUserId(con);
+                if (userId == null)
+                    return GetValueOnObject(doc.RealName, instanceDescription ?? DescriptionSetting.Default);
                 var settingsService = DiHandler.GetService<SettingsService>();
-                var current = await settingsService.GetCurrentValue(con.UserId.ToString(), "description", () =>
+                var current = await settingsService.GetCurrentValue(userId, "description", () =>
                 {
                     return DescriptionSetting.Default;
                 });

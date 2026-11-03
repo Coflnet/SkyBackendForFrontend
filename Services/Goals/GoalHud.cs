@@ -45,7 +45,8 @@ public static class GoalHud
             dto.Title += $" §7[{focusPlan.Mode}{(focusPlan.Deadline is { } until ? $", until {until:HH:mm} UTC" : "")}]";
         if (focus.BazaarFlip != null)
             dto.Lines.Add(BazaarFlipProgress.Line(focus, hasCookie, nameLookup(focus.RootItemTag) ?? focus.RootItemTag,
-                searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag));
+                searchNameLookup(focus.RootItemTag) ?? nameLookup(focus.RootItemTag) ?? focus.RootItemTag, DateTime.UtcNow,
+                BuyStepPrice(focusProgress)));
         else if (focusProgress != null)
         {
             var steps = MergeSameItem(focusProgress.Actionable);
@@ -125,6 +126,10 @@ public static class GoalHud
         }
         return result;
     }
+
+    /// <summary>The flip line shows the price of the evaluated buy step, so it always matches the guide on the bazaar screens.</summary>
+    private static double? BuyStepPrice(GoalProgress progress)
+        => progress?.Actionable.FirstOrDefault(s => s.Kind == StepKind.BuyOrder)?.UnitPrice;
 
     private static GoalProgress Get(IReadOnlyDictionary<string, GoalProgress> map, string id)
         => map != null && map.TryGetValue(id, out var p) ? p : null;
@@ -243,6 +248,12 @@ public static class GoalHud
         var scaled = abs < 10 ? Math.Round(abs, 2) : abs < 100 ? Math.Round(abs, 1) : Math.Round(abs);
         return sign + scaled.ToString("0.##", CultureInfo.InvariantCulture) + suffixes[unit];
     }
+
+    /// <summary>
+    /// Formats a bazaar price per unit rounded to the 0.1 tick, e.g. 376.6 or 1,230. Without grouping (1230) it can be typed into a sign.
+    /// </summary>
+    public static string OrderPrice(double value, bool grouping = true)
+        => BazaarFlipProgress.RoundToTick(value).ToString(grouping ? "#,##0.#" : "0.#", CultureInfo.InvariantCulture);
 
     public static string Hash(InfoDisplayDto dto)
     {

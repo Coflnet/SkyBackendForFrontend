@@ -8,23 +8,13 @@ public static class GoalProgressEvaluator
 {
     public const int MaxActionable = 5;
 
+    // topBuyOrders: best buy orders read from bazaar screens by item tag, they refresh the entry of Active plan flips
     public static GoalProgress Evaluate(Goal goal, IReadOnlyDictionary<string, long> playerCounts,
-        IReadOnlyDictionary<string, long> openBuyOrders, ISet<string> forgingTags, DateTime now)
+        IReadOnlyDictionary<string, long> openBuyOrders, ISet<string> forgingTags, DateTime now,
+        IReadOnlyDictionary<string, BazaarTopOrder> topBuyOrders = null)
     {
-        if (goal?.BazaarFlip is { } flip)
-        {
-            var action = BazaarFlipProgress.Next(goal);
-            var stages = new[] { BazaarFlipProgress.Committed(flip, false) > 0, BazaarFlipProgress.Filled(flip, false) >= goal.Quantity,
-                flip.BuyClaimed >= goal.Quantity, BazaarFlipProgress.Committed(flip, true) > 0,
-                BazaarFlipProgress.Filled(flip, true) >= goal.Quantity, flip.SellClaimed >= goal.Quantity };
-            return new GoalProgress { Goal = goal, Total = 6, Done = stages.Count(s => s), Complete = stages[5],
-                Status = new() { [goal.Root.Id] = stages[5] ? StepStatus.Done : StepStatus.Todo },
-                Actionable = action is BazaarFlipAction.Buy or BazaarFlipAction.Sell ? new() { new GoalStep {
-                    Id = goal.Root.Id + (action == BazaarFlipAction.Buy ? "-buy" : "-sell"), Kind = action == BazaarFlipAction.Buy ? StepKind.BuyOrder : StepKind.Sell,
-                    ItemTag = goal.RootItemTag,
-                    UnitPrice = action == BazaarFlipAction.Buy ? goal.Plan?.EntryPrice : goal.Plan?.ExitPrice, Quantity = action == BazaarFlipAction.Buy
-                        ? goal.Quantity - BazaarFlipProgress.Committed(flip, false) : flip.BuyClaimed - BazaarFlipProgress.Committed(flip, true) } } : new() };
-        }
+        if (goal?.BazaarFlip != null)
+            return EvaluateBazaarFlip(goal, topBuyOrders);
         var available = new Dictionary<string, long>(playerCounts ?? new Dictionary<string, long>());
         var progress = new GoalProgress { Goal = goal };
         if (goal?.Root == null)
@@ -39,6 +29,35 @@ public static class GoalProgressEvaluator
         progress.Complete = progress.Status[goal.Root.Id] == StepStatus.Done;
         return progress;
     }
+
+    private static GoalProgress EvaluateBazaarFlip(Goal goal, IReadOnlyDictionary<string, BazaarTopOrder> topBuyOrders)
+    {
+        var flip = goal.BazaarFlip;
+        var action = BazaarFlipProgress.Next(goal);
+        var stages = new[] { BazaarFlipProgress.Committed(flip, false) > 0, BazaarFlipProgress.Filled(flip, false) >= goal.Quantity,
+            flip.BuyClaimed >= goal.Quantity, BazaarFlipProgress.Committed(flip, true) > 0,
+            BazaarFlipProgress.Filled(flip, true) >= goal.Quantity, flip.SellClaimed >= goal.Quantity };
+        return new GoalProgress { Goal = goal, Total = 6, Done = stages.Count(s => s), Complete = stages[5],
+            Status = new() { [goal.Root.Id] = stages[5] ? StepStatus.Done : StepStatus.Todo },
+            Actionable = action switch
+            {
+                BazaarFlipAction.Buy => new() { BazaarFlipBuyStep(goal, topBuyOrders) },
+                BazaarFlipAction.Sell => new() { BazaarFlipSellStep(goal) },
+                _ => new()
+            } };
+    }
+
+    private static GoalStep BazaarFlipBuyStep(Goal goal, IReadOnlyDictionary<string, BazaarTopOrder> topBuyOrders)
+    {
+        BazaarTopOrder? top = goal.RootItemTag != null && topBuyOrders != null && topBuyOrders.TryGetValue(goal.RootItemTag, out var t) ? t : null;
+        return new GoalStep { Id = goal.Root.Id + "-buy", Kind = StepKind.BuyOrder, ItemTag = goal.RootItemTag,
+            UnitPrice = BazaarFlipProgress.EntryPrice(goal, top),
+            Quantity = goal.Quantity - BazaarFlipProgress.Committed(goal.BazaarFlip, false) };
+    }
+
+    private static GoalStep BazaarFlipSellStep(Goal goal)
+        => new() { Id = goal.Root.Id + "-sell", Kind = StepKind.Sell, ItemTag = goal.RootItemTag, UnitPrice = goal.Plan?.ExitPrice,
+            Quantity = goal.BazaarFlip.BuyClaimed - BazaarFlipProgress.Committed(goal.BazaarFlip, true) };
 
     private static long Allocate(Dictionary<string, long> available, string tag, long wanted)
     {
