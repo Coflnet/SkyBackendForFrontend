@@ -19,12 +19,14 @@ public class CurrentEventDetailedFlipFilter : DetailedFlipFilter
         NewYear,
         SeasonOfJerry,
         JacobsFarmingContest,
+        HarvestFeast,
         NotTravelingZoo = 101,
         NotSpookyFestival,
         NotDarkAuction,
         NotNewYear,
         NotSeasonOfJerry,
-        NotJacobsFarmingContest
+        NotJacobsFarmingContest,
+        NotHarvestFeast
     }
     public enum Months
     {
@@ -45,6 +47,13 @@ public class CurrentEventDetailedFlipFilter : DetailedFlipFilter
 
     public FilterType FilterType => FilterType.Equal;
     protected virtual DateTime Now => DateTime.UtcNow;
+    /// <summary>
+    /// The Grand Feast mayor perk extends the Harvest Feast to the whole year
+    /// </summary>
+    private static bool IsGrandFeastActive()
+    {
+        return DiHandler.GetService<FilterStateService>().State.CurrentPerks.Contains("Grand Feast", StringComparer.OrdinalIgnoreCase);
+    }
 
     public Expression<Func<FlipInstance, bool>> GetExpression(FilterContext filters, string val)
     {
@@ -56,9 +65,10 @@ public class CurrentEventDetailedFlipFilter : DetailedFlipFilter
             (03*31,03*31+3, Events.TravelingZoo),
             (9*31,9*31+3, Events.TravelingZoo),
             ((int)Months.Autumn*31+28,(int)Months.LateAutumn*31, Events.SpookyFestival),
-            (11*31+23,11*31+26, Events.SeasonOfJerry)
+            (11*31+23,11*31+26, Events.SeasonOfJerry),
+            ((int)Months.EarlyAutumn*31,(int)Months.EarlyWinter*31-1, Events.HarvestFeast)
         };
-        var currentEvent = eventList.FirstOrDefault(e => currentDay >= e.Item1 && currentDay <= e.Item2).Item3;
+        var currentEvents = eventList.Where(e => currentDay >= e.Item1 && currentDay <= e.Item2).Select(e => e.Item3).ToHashSet();
         var shouldBeTrue = true;
         if (eventVal >= Events.NotTravelingZoo)
         {
@@ -74,7 +84,16 @@ public class CurrentEventDetailedFlipFilter : DetailedFlipFilter
             return a => (Now.Minute >= 15 && Now.Minute <= 35) == shouldBeTrue;
         }
 
-        return a => currentEvent == eventVal == shouldBeTrue;
+        if (eventVal == Events.HarvestFeast)
+        {
+            return a => (currentEvents.Contains(Events.HarvestFeast) || IsGrandFeastActive()) == shouldBeTrue;
+        }
+        if (eventVal == Events.None)
+        {
+            return a => currentEvents.Count == 0 && !IsGrandFeastActive();
+        }
+
+        return a => currentEvents.Contains(eventVal) == shouldBeTrue;
     }
 
     private int GetCurrentDay()
