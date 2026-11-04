@@ -259,6 +259,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddHttpClient();
             services.AddSingleton<ICollectionNameResolver, CollectionNameResolver>();
             services.AddSingleton<IProfileClient, ProfileClient>();
+            services.AddSingleton<IAccessoryService, AccessoryService>();
             services.AddSingleton<ForgeFlipService>();
             services.AddSingleton<IBazaarFlipperApi, BazaarFlipperApi>(s =>
                 new BazaarFlipperApi(s.GetRequiredService<IConfiguration>()["BAZAARFLIPPER_BASE_URL"]));
