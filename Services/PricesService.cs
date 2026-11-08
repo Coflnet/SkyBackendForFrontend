@@ -153,7 +153,13 @@ namespace Coflnet.Sky.Commands.Shared
             return null;
         }
 
-        public async Task<(long cost, string uuid, long slbin)> GetLowestBinData(string itemTag, Dictionary<string, string> filters = null)
+        public Task<(long cost, string uuid, long slbin)> GetLowestBinData(string itemTag, Dictionary<string, string> filters = null)
+            => GetLowestBinData(itemTag, filters, CancellationToken.None);
+
+        /// <summary>
+        /// Cheapest and second cheapest active BIN matching the filters, the token cancels the database query
+        /// </summary>
+        public async Task<(long cost, string uuid, long slbin)> GetLowestBinData(string itemTag, Dictionary<string, string> filters, CancellationToken cancellationToken)
         {
             var itemId = GetItemId(itemTag);
             var select = context.Auctions
@@ -175,7 +181,7 @@ namespace Coflnet.Sky.Commands.Shared
                     })
                 .OrderBy(a => a.StartingBid)
                 .Take(2)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             if (dbResult.Count == 0)
                 return (0, null, 0);

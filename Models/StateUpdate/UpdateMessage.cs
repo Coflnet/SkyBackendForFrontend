@@ -108,6 +108,11 @@ public class ChestView
     /// </summary>
     [Key(3)]
     public DateTime OpenedAt;
+    /// <summary>
+    /// Index into <see cref="Items"/> of the item the player holds, null when the client didn't send it (older mods)
+    /// </summary>
+    [Key(4)]
+    public int? HeldSlot;
 }
 
 
