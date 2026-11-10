@@ -23,6 +23,7 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|\s*(?:WOOD|GOLD|DIAMOND|EMERALD|OBSIDIAN|BEDROCK) CHEST REWARDS" // dungeon reward chest actually opened
                 + @"|\s+(?:EXCAVATION COMPLETE|Fossil Essence)" // fossil excavation summary header and the essence reward line (essence never touches inventory or sacks)
                 + @"|can't find a player by the name of|That player is not online, try another user" // autotip corrections
+                + @"|\s*(?:✦ )?CRYSTAL FOUND \(\d/5\)|(?:✦ )?You placed the \w+ Crystal!|\s*CRYSTAL NUCLEUS LOOT BUNDLE" // Crystal Nucleus run: crystal found, placed, loot bundle earned
                 + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
         public const string DefaultChatBlockRegex =
             @"^(You tipped |You were tipped|You've already tipped someone).*";
