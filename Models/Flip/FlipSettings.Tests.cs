@@ -342,5 +342,17 @@ namespace Coflnet.Sky.Commands.Shared
             var updater = new SettingsUpdater();
             var options = updater.Options();
         }
+
+        /// <summary>
+        /// Regression: a null flip (the replay buffers are enumerated while other threads modify them)
+        /// reached flip.Finder and threw a NullReferenceException for every settings check.
+        /// </summary>
+        [Test]
+        public void NullFlipDoesNotThrow()
+        {
+            var result = new FlipSettings().MatchesSettings(null);
+
+            result.Item1.Should().BeFalse();
+        }
     }
 }

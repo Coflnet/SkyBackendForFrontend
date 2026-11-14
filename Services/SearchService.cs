@@ -235,7 +235,7 @@ namespace Coflnet.Sky.Commands.Shared
                 Name = i.Text + (i.Flags.Value.HasFlag(Sky.Items.Client.Model.ItemFlags.BAZAAR) ? " - bazaar"
                         : i.Flags.Value.HasFlag(Sky.Items.Client.Model.ItemFlags.AUCTION) ? "" : " - not on ah"),
                 Tag = i.Tag,
-                Tier = (Coflnet.Sky.Core.Tier)i.Tier - 1,
+                Tier = ItemSearchResults.FromSearchTier(i.Tier),
                 IconUrl = "https://sky.coflnet.com/static/icon/" + i.Tag,
                 HitCount = i.Tag == "CAKE_SOUL" ? 2 : 30 // items higher base hit count
 
@@ -423,7 +423,7 @@ namespace Coflnet.Sky.Commands.Shared
                 Name = resultText,
                 Type = "filter",
                 IconUrl = "https://sky.coflnet.com/static/icon/" + itemTag,
-                Id = itemTag + "?itemFilter=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(JSON.Stringify(filter)))
+                Id = FilterQueryParser.FormatId(itemTag, filter)
             });
         }
 

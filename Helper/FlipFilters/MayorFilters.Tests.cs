@@ -27,7 +27,7 @@ public class MayorFiltersTests
     [Test]
     public async Task HostedServiceRefreshesMayorImmediately()
     {
-        var mayorApi = new Mock<IMayorApiApi>();
+        var mayorApi = new Mock<IMayorApi>();
         using var stateService = new FilterStateService(
             NullLogger<FilterStateService>.Instance,
             mayorApi.Object,
@@ -38,16 +38,16 @@ public class MayorFiltersTests
             await Task.Delay(10);
 
         Assert.That(mayorApi.Invocations, Has.Count.EqualTo(1));
-        Assert.That(mayorApi.Invocations[0].Method.Name, Is.EqualTo(nameof(IMayorApiApiSync.MayorLastGet)));
+        Assert.That(mayorApi.Invocations[0].Method.Name, Is.EqualTo(nameof(IMayorApiSync.MayorLastGet)));
         await stateService.StopAsync(CancellationToken.None);
     }
 
     [Test]
     public async Task LastMayorRefreshUpdatesCompiledFilterWithoutLoadingItems()
     {
-        var mayorApi = new Mock<IMayorApiApi>();
-        mayorApi.As<IMayorApiApiSync>().Setup(api => api.MayorLastGet(It.IsAny<int>())).Returns("Diana");
-        mayorApi.As<IMayorApiApiAsync>().Setup(api => api.MayorNextGetAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        var mayorApi = new Mock<IMayorApi>();
+        mayorApi.As<IMayorApiSync>().Setup(api => api.MayorLastGet(It.IsAny<int>())).Returns("Diana");
+        mayorApi.As<IMayorApiAsync>().Setup(api => api.MayorNextGetAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Skip unrelated mayor state updates"));
         var itemsApi = new Mock<IItemsApi>(MockBehavior.Strict);
         var stateService = new FilterStateService(
@@ -65,19 +65,19 @@ public class MayorFiltersTests
 
         stateService.State.LastUpdate = DateTime.MinValue;
         Assert.That(matches(new FlipInstance()), Is.False);
-        mayorApi.As<IMayorApiApiSync>().Verify(api => api.MayorLastGet(It.IsAny<int>()), Times.Never);
+        mayorApi.As<IMayorApiSync>().Verify(api => api.MayorLastGet(It.IsAny<int>()), Times.Never);
 
         await stateService.UpdateMayorState();
 
         Assert.That(matches(new FlipInstance()), Is.True);
-        mayorApi.As<IMayorApiApiSync>().Verify(api => api.MayorLastGet(It.IsAny<int>()), Times.Once);
+        mayorApi.As<IMayorApiSync>().Verify(api => api.MayorLastGet(It.IsAny<int>()), Times.Once);
         itemsApi.VerifyNoOtherCalls();
     }
 
     [Test]
     public async Task ProxySyncUpdatesCompiledLastMayorFilter()
     {
-        var mayorApi = new Mock<IMayorApiApi>(MockBehavior.Strict);
+        var mayorApi = new Mock<IMayorApi>(MockBehavior.Strict);
         var itemsApi = new Mock<IItemsApi>(MockBehavior.Strict);
         var stateService = new FilterStateService(
             NullLogger<FilterStateService>.Instance,
@@ -156,7 +156,7 @@ public class MayorFiltersTests
     {
         return new FilterStateService(
             NullLogger<FilterStateService>.Instance,
-            new Mock<IMayorApiApi>(MockBehavior.Strict).Object,
+            new Mock<IMayorApi>(MockBehavior.Strict).Object,
             new Mock<IItemsApi>(MockBehavior.Strict).Object,
             state);
     }
