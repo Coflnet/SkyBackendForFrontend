@@ -19,7 +19,7 @@ public class AhCategoryDetailedFlipFilterTests
         // seeded sets only, a load call would hit the strict items api mock
         var service = new FilterStateService(
             NullLogger<FilterStateService>.Instance,
-            new Mock<IMayorApiApi>(MockBehavior.Strict).Object,
+            new Mock<IMayorApi>(MockBehavior.Strict).Object,
             new Mock<IItemsApi>(MockBehavior.Strict).Object);
         service.State.itemCategories[ItemCategory.HELMET] = ["MAGMA_LORD_HELMET"];
         service.State.itemCategories[ItemCategory.CHESTPLATE] = ["MAGMA_LORD_CHESTPLATE"];
