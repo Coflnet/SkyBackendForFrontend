@@ -8,9 +8,10 @@ namespace Coflnet.Sky.Commands.Shared
         public const string DefaultChatRegex =
                 @"^(You cannot view this auction!|You claimed|\[Bazaar\]|\[NPC\] Kat|Cancelled"
                 + @"|You collected|\[Auction\]|BIN Auction started|You cancelled|You purchased "
-                + @"|Profile ID: |You placd a Trap|\+\d+ .* Attribute \(Level "
+                + @"|Profile ID: |You placed a Trap|\+\d+ .* Attribute \(Level "
                 + @"|You caught |CAPTURE! You caught |\s+Chameleon" // catching shards
-                + @"|LOOT SHARE You received " // shards received for assisting a party member
+                + @"|CHARM! You charmed " // killed mobs can yield hunting shards
+                + @"|LOOT SHARE!? You received " // assisting catches, including lobby-wide Safari sharing
                 + @"|\[NPC\] (?:Hunter Harry|Huntress Melissa)|You have been given a " // Safari NPC shard trades
                 + @"|\s*\+[\d,]+ Shards" // Safari reward summary (hover contains the shard breakdown)
                 + @"|Added items|Removed items" // stash adding notification
@@ -23,6 +24,7 @@ namespace Coflnet.Sky.Commands.Shared
                 + @"|\s*(?:WOOD|GOLD|DIAMOND|EMERALD|OBSIDIAN|BEDROCK) CHEST REWARDS" // dungeon reward chest actually opened
                 + @"|\s+(?:EXCAVATION COMPLETE|Fossil Essence)" // fossil excavation summary header and the essence reward line (essence never touches inventory or sacks)
                 + @"|can't find a player by the name of|That player is not online, try another user" // autotip corrections
+                + @"|\s*(?:✦ )?CRYSTAL FOUND \(\d/5\)|(?:✦ )?You placed the \w+ Crystal!|\s*CRYSTAL NUCLEUS LOOT BUNDLE" // Crystal Nucleus run: crystal found, placed, loot bundle earned
                 + @"| - | \+ |Trade completed|Bid of|\nClick the link to |\nClick th' li|You must set it to at least).*";
         public const string DefaultChatBlockRegex =
             @"^(You tipped |You were tipped|You've already tipped someone).*";

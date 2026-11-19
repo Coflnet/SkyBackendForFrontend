@@ -54,6 +54,18 @@ public static class ItemSearchResults
 /// <param name="TimedOut">true if the time budget was hit, the answer is incomplete and must not be cached</param>
 public record FilterSearchResult(List<SearchResultItem> Results, bool TimedOut = false);
 
+/// <summary>An item found in free text</summary>
+/// <param name="Tag">item tag</param>
+/// <param name="Name">display name</param>
+/// <param name="Consumed">how many words were used</param>
+public record ResolvedItem(string Tag, string Name, int Consumed);
+
+/// <summary>How many distinct items match a phrase by name</summary>
+/// <param name="Prefix">items whose name starts with the phrase</param>
+/// <param name="Contains">items whose name contains the phrase anywhere (includes the prefix matches)</param>
+/// <param name="Single">the item if exactly one name starts with the phrase, else null</param>
+public record ItemNameMatches(int Prefix, int Contains, ResolvedItem Single);
+
 
 /// <summary>
 /// Resolves search phrases like "hyperion sharp 7" to an item plus filters
@@ -151,11 +163,60 @@ public class ItemFilterSearchService : IDisposable
         }
     }
 
-    private async Task<Resolved> ResolveItem(string[] words, CancellationToken ct)
+    /// <summary>
+    /// Resolves an item from the start of the (normalized) words, the item may use all of them.
+    /// </summary>
+    public virtual async Task<ResolvedItem> ResolveItemAsync(string[] words, CancellationToken ct)
+    {
+        var r = await ResolveItem(words, ct, true);
+        return r == null ? null : new ResolvedItem(r.Tag, r.Name, r.Consumed);
+    }
+
+    /// <summary>
+    /// Item with exactly this normalized name, null if there is none
+    /// </summary>
+    public virtual async Task<ResolvedItem> TryExactItemAsync(string normalizedPhrase, CancellationToken ct)
     {
         var list = await GetNames(ct);
+        var entry = list?.Exact.GetValueOrDefault(normalizedPhrase);
+        return entry == null ? null : new ResolvedItem(entry.Tag, entry.Name, normalizedPhrase.Split(' ').Length);
+    }
+
+    /// <summary>
+    /// Counts the items whose name starts with / contains the normalized phrase
+    /// </summary>
+    public virtual async Task<ItemNameMatches> FindNameMatchesAsync(string normalizedPhrase, CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        if (list == null || string.IsNullOrEmpty(normalizedPhrase))
+            return new ItemNameMatches(0, 0, null);
+        var prefix = list.Entries.Where(e => e.Lower.StartsWith(normalizedPhrase)).GroupBy(e => e.Tag).Select(g => g.First()).ToList();
+        var contains = list.Entries.Where(e => e.Lower.Contains(normalizedPhrase)).Select(e => e.Tag).Distinct().Count();
+        var single = prefix.Count == 1 ? new ResolvedItem(prefix[0].Tag, prefix[0].Name, normalizedPhrase.Split(' ').Length) : null;
+        return new ItemNameMatches(prefix.Count, contains, single);
+    }
+
+    /// <summary>
+    /// Tag to display name of all known items (from the cached name list)
+    /// </summary>
+    internal virtual async Task<IReadOnlyDictionary<string, string>> GetTagNamesAsync(CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        var result = new Dictionary<string, string>();
         if (list != null)
-            for (var k = words.Length - 1; k >= 1; k--)
+            foreach (var e in list.Entries)
+                result.TryAdd(e.Tag, e.Name);
+        return result;
+    }
+
+    private Task<Resolved> ResolveItem(string[] words, CancellationToken ct) => ResolveItem(words, ct, false);
+
+    private async Task<Resolved> ResolveItem(string[] words, CancellationToken ct, bool allowAllWords)
+    {
+        var extra = allowAllWords ? 1 : 0;
+        var list = await GetNames(ct);
+        if (list != null)
+            for (var k = words.Length - 1 + extra; k >= 1; k--)
             {
                 var candidate = string.Join(' ', words.Take(k));
                 var entry = list.Exact.GetValueOrDefault(candidate);
@@ -171,7 +232,7 @@ public class ItemFilterSearchService : IDisposable
                 return new Resolved(entry.Tag, entry.Name, details?.Flags ?? ItemFlags.AUCTION, ItemSearchResults.FromItemTier(details?.Tier), k);
             }
         // aliases and abbreviations (aote) only exist in the SkyItems search
-        var lookups = await Task.WhenAll(Enumerable.Range(1, words.Length - 1)
+        var lookups = await Task.WhenAll(Enumerable.Range(1, words.Length - 1 + extra)
             .Select(k => SearchSafe(string.Join(' ', words.Take(k)), ct)));
         for (var k = lookups.Length; k >= 1; k--)
         {
@@ -275,6 +336,34 @@ public class ItemFilterSearchService : IDisposable
     {
         cache.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex NonLetters = new("[^a-z]+", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private NameList wordsSource;
+    private HashSet<string> wordsCache;
+
+    /// <summary>
+    /// Lowercase words (2+ letters) that occur in any item name, rebuilt when the name list is reloaded.
+    /// Used by the search mode of <see cref="FilterQueryParser"/> to keep item name words from becoming filters.
+    /// Empty if the names could not be loaded.
+    /// </summary>
+    public virtual async Task<HashSet<string>> GetNameWordsAsync(CancellationToken ct)
+    {
+        var list = await GetNames(ct);
+        if (list == null)
+            return new HashSet<string>();
+        lock (loadLock)
+        {
+            if (ReferenceEquals(wordsSource, list) && wordsCache != null)
+                return wordsCache;
+        }
+        var built = list.Entries.SelectMany(e => NonLetters.Split(e.Name.ToLowerInvariant()))
+            .Where(w => w.Length >= 2).ToHashSet();
+        lock (loadLock)
+        {
+            wordsSource = list;
+            return wordsCache = built;
+        }
     }
 
     private async Task<NameList> GetNames(CancellationToken ct)

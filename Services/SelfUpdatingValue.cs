@@ -14,7 +14,7 @@ namespace Coflnet.Sky.Commands.Shared
         public Func<T, bool> ShouldPreventUpdate;
         private string UserId;
         private string Key;
-        private bool IsDisposed = false;
+        private volatile bool IsDisposed = false;
         private DateTime LastUpdateReceived = DateTime.UtcNow;
 
         ChannelMessageQueue subTask;
@@ -88,6 +88,12 @@ namespace Coflnet.Sky.Commands.Shared
         /// <returns></returns>
         public async Task Update(T newValue)
         {
+            if (IsDisposed)
+            {
+                // a disposed value was replaced, writing its stale/empty state would overwrite the current setting
+                Console.WriteLine($"Ignoring update of disposed SelfUpdatingValue {UserId}/{Key}");
+                return;
+            }
             if (UserId == null)
             {
                 ShouldPreventUpdate?.Invoke(newValue);
@@ -100,7 +106,7 @@ namespace Coflnet.Sky.Commands.Shared
                 throw new ArgumentNullException(nameof(newValue));
             await GetService().UpdateSetting(UserId, Key, newValue);
             await Task.Delay(500); // wait for redis to update
-            if (LastUpdateReceived < DateTime.UtcNow.AddSeconds(-5))
+            if (!IsDisposed && LastUpdateReceived < DateTime.UtcNow.AddSeconds(-5))
             {
                 DiHandler.GetService<ILogger<SelfUpdatingValue<T>>>().LogWarning(
                     "SelfUpdatingValue {UserId}/{Key} did not receive an update in the last 5 seconds from {lastUpdate} to {now}, this may indicate a desync. Re-subscribing.",
@@ -108,6 +114,11 @@ namespace Coflnet.Sky.Commands.Shared
                 // apaarently updating did desync, resubscribe
                 subTask?.Unsubscribe();
                 subTask = await CreateSubscription(UserId, Key, null, this, GetService());
+                if (IsDisposed) // disposed while resubscribing
+                {
+                    subTask?.Unsubscribe();
+                    subTask = null;
+                }
             }
         }
 
@@ -117,8 +128,11 @@ namespace Coflnet.Sky.Commands.Shared
         /// </summary>
         public async Task Update(Action<T> update)
         {
-            update(Value);
-            await Update(Value);
+            var current = Value;
+            if (IsDisposed || current == null)
+                return;
+            update(current);
+            await Update(current);
         }
 
         /// <summary>

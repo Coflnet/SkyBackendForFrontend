@@ -94,4 +94,78 @@ public class FilterQueryParserTests
         var names = new FilterEngine(new Mock<INBT>().Object).AvailableFilters.Select(f => f.Name).ToHashSet(System.StringComparer.OrdinalIgnoreCase);
         FilterQueryParser.Aliases.Values.Select(a => a.Filter).Where(f => !names.Contains(f)).Should().BeEmpty();
     }
+
+    private static readonly HashSet<string> NameWords = new()
+    {
+        "ender", "enderman", "pet", "superior", "wither", "skeleton", "dragon", "golden", "wise", "strong", "heavy", "perfect", "star", "power", "magma", "armor"
+    };
+
+    private ParsedFilters Search(string text)
+        => parser.Parse(text.Split(' '), new FilterParseOptions(NameWords.Contains));
+
+    [TestCase("ender")]
+    [TestCase("superior")]
+    [TestCase("wither")]
+    [TestCase("pet")]
+    [TestCase("dragon")]
+    [TestCase("wise")]
+    [TestCase("star")]
+    [TestCase("power")]
+    [TestCase("perfect")]
+    [TestCase("magma")]
+    [TestCase("enderman pet")]
+    [TestCase("golden dragon")]
+    [TestCase("wither skeleton")]
+    [TestCase("ender armor")]
+    public void SearchModeKeepsNameWordsOutOfFilters(string text)
+    {
+        var parsed = Search(text);
+        parsed.Filters.Should().BeEmpty();
+        parsed.Unmatched.Should().Equal(text.Split(' '));
+    }
+
+    [Test]
+    public void DefaultModeStillTurnsEnderIntoEnchant()
+    {
+        Parse("ender").Filters.Should().ContainSingle().Which.Key.Should().Be("ender_slayer");
+        Parse("wither").Filters.Should().ContainSingle().Which.Should().Be(new KeyValuePair<string, string>("Reforge", "withered"));
+    }
+
+    [TestCase("ender slayer 7", "ender_slayer=7")]
+    [TestCase("ender 7", "ender_slayer=7")]
+    [TestCase("ultimate wise 5", "ultimate_wise=5")]
+    [TestCase("wise 5", "ultimate_wise=5")]
+    [TestCase("sharpness", "sharpness=>0")]
+    [TestCase("sharpness 7", "sharpness=7")]
+    [TestCase("withered", "Reforge=withered")]
+    [TestCase("legendary", "Rarity=LEGENDARY")]
+    [TestCase("ultimate", "Rarity=ULTIMATE")]
+    [TestCase("recomb", "Recombobulated=true")]
+    [TestCase("hpb 10", "HotPotatoCount=10")]
+    [TestCase("stars 5", "Stars=5")]
+    [TestCase("reforge heavy", "Reforge=Heavy")]
+    public void SearchModeKeepsUnambiguousFilters(string text, string expected)
+    {
+        var parsed = Search(text);
+        parsed.Unmatched.Should().BeEmpty();
+        var (key, value) = (expected.Split('=', 2)[0], expected.Split('=', 2)[1]);
+        parsed.Filters.Should().ContainSingle().Which.Should().Be(new KeyValuePair<string, string>(key, value));
+    }
+
+    [Test]
+    public void SearchModeUltimateWithoutLevelIsRarityAndNameWord()
+    {
+        var parsed = Search("ultimate wise");
+        parsed.Filters.Should().ContainSingle().Which.Should().Be(new KeyValuePair<string, string>("Rarity", "ULTIMATE"));
+        parsed.Unmatched.Should().Equal("wise");
+    }
+
+    [Test]
+    public void SearchModeKeepsRarityAndRichReforge()
+    {
+        var parsed = Search("rich mythic");
+        parsed.Unmatched.Should().BeEmpty();
+        parsed.Filters.Should().Contain(new KeyValuePair<string, string>("Reforge", "Rich"))
+            .And.Contain(new KeyValuePair<string, string>("Rarity", "MYTHIC"));
+    }
 }

@@ -44,11 +44,11 @@ public class FilterStateService : BackgroundService
 
     private DateTime lastYoutuberLoad = DateTime.MinValue;
 
-    private Sky.Mayor.Client.Api.IMayorApiApi mayorApi;
+    private Sky.Mayor.Client.Api.IMayorApi mayorApi;
     private Items.Client.Api.IItemsApi itemsApi;
     private ILogger<FilterStateService> logger;
 
-    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApiApi mayorApi, Items.Client.Api.IItemsApi itemsApi, FilterState state = null)
+    public FilterStateService(ILogger<FilterStateService> logger, Sky.Mayor.Client.Api.IMayorApi mayorApi, Items.Client.Api.IItemsApi itemsApi, FilterState state = null)
     {
         this.logger = logger;
         this.mayorApi = mayorApi;

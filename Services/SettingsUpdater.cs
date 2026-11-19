@@ -113,10 +113,7 @@ namespace Coflnet.Sky.Commands.Shared
                 {
                     return DescriptionSetting.Default;
                 });
-                // clean up "clear <name>"/"rm <name>" junk stored by the old buggy parsing, even when
-                // a different lore setting is being updated right now
-                CleanupJunkEntries(current.DisableInfoIn);
-                var newVal = UpdateValueOnObject(value, doc.RealName, current);
+                var newVal = ApplyLoreUpdate(current, key, value);
                 await settingsService.UpdateSetting(con.UserId.ToString(), "description", current);
                 return newVal;
             }
@@ -160,7 +157,39 @@ namespace Coflnet.Sky.Commands.Shared
                         throw new CoflnetException("invalid_format", "Format update rejected. \nMake sure any squirly brackets are closed again or prefixed with another bracket to escape it, eg {{ will result in {.");
                     }
                 }
-                return UpdateValueOnObject(value, doc.RealName, con.ModSettings);
+                var mod = con.ModSettings;
+                var previousHorizon = mod.BazaarInvestingHorizonHours;
+                var previousBudget = mod.BazaarPlanBudget;
+                // NumberParser drops the sign, so negative input has to be rejected before parsing
+                var negative = value?.TrimStart().StartsWith('-') == true;
+                if (negative && doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours))
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be between 1 and 48 hours");
+                if (negative && doc.RealName == nameof(ModSettings.BazaarPlanBudget))
+                    throw new CoflnetException("invalid_budget", "The bazaar budget can't be negative, use 0 for two thirds of your purse");
+                // Convert.ChangeType rounds doubles, so 0.4 would silently become 0; the horizon has to be a whole number
+                if (doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours)
+                    && double.TryParse(value?.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsedHorizon)
+                    && parsedHorizon != Math.Floor(parsedHorizon))
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be a whole number between 1 and 48 hours");
+                var previousMode = mod.BazaarMode;
+                var updated = UpdateValueOnObject(value, doc.RealName, mod);
+                if (doc.RealName == nameof(ModSettings.BazaarMode) && !Enum.IsDefined(typeof(BazaarPlanMode), mod.BazaarMode))
+                {
+                    mod.BazaarMode = previousMode;
+                    throw new CoflnetException("invalid_mode", "Allowed: Active, Investing, Both");
+                }
+                if (doc.RealName == nameof(ModSettings.BazaarInvestingHorizonHours)
+                    && mod.BazaarInvestingHorizonHours != 0 && (mod.BazaarInvestingHorizonHours < 1 || mod.BazaarInvestingHorizonHours > 48))
+                {
+                    mod.BazaarInvestingHorizonHours = previousHorizon;
+                    throw new CoflnetException("invalid_horizon", "The investing horizon has to be between 1 and 48 hours");
+                }
+                if (doc.RealName == nameof(ModSettings.BazaarPlanBudget) && mod.BazaarPlanBudget < 0)
+                {
+                    mod.BazaarPlanBudget = previousBudget;
+                    throw new CoflnetException("invalid_budget", "The bazaar budget can't be negative, use 0 for two thirds of your purse");
+                }
+                return updated;
             }
             else
             {
@@ -175,7 +204,47 @@ namespace Coflnet.Sky.Commands.Shared
                 .ToList();
         }
 
-        public async Task<object> GetCurrentValue(IFlipConnection con, string key)
+        /// <summary>
+        /// True when the key changes a <see cref="DescriptionSetting"/> (item lore)
+        /// </summary>
+        public bool IsLoreKey(string key) => options.TryGetValue(key, out var doc) && doc.Prefix == "lore";
+
+        /// <summary>
+        /// True when the key changes a <see cref="PrivacySettings"/> value, which are bound to an account
+        /// </summary>
+        public bool IsPrivacyKey(string key) => options.TryGetValue(key, out var doc) && doc.Prefix == "privacy";
+
+        /// <summary>
+        /// Applies a lore setting change to <paramref name="current"/> without needing a user account.
+        /// </summary>
+        /// <returns>The new value of the setting</returns>
+        public object ApplyLoreUpdate(DescriptionSetting current, string key, string value)
+        {
+            if (!options.TryGetValue(key, out var doc) || doc.Prefix != "lore")
+                throw new CoflnetException("invalid_setting", $"the setting {key} is not a lore setting");
+            // clean up "clear <name>"/"rm <name>" junk stored by the old buggy parsing, even when
+            // a different lore setting is being updated right now
+            CleanupJunkEntries(current.DisableInfoIn);
+            return UpdateValueOnObject(value, doc.RealName, current);
+        }
+
+        /// <summary>
+        /// The user id of the connection or null when it is not signed in
+        /// </summary>
+        private static string TryGetUserId(IFlipConnection con)
+        {
+            try
+            {
+                return con.UserId;
+            }
+            catch (CoflnetException e) when (e.Slug == ErrorSlugs.NoLogin)
+            {
+                return null;
+            }
+        }
+
+        // instanceDescription: lore values shown to signed-out users, the defaults when null
+        public async Task<object> GetCurrentValue(IFlipConnection con, string key, DescriptionSetting instanceDescription = null)
         {
             if (key == "blacklist")
                 return con.Settings.BlackList;
@@ -202,14 +271,20 @@ namespace Coflnet.Sky.Commands.Shared
             }
             else if (doc.Prefix == "privacy")
             {
+                var userId = TryGetUserId(con);
+                if (userId == null)
+                    return GetValueOnObject(doc.RealName, PrivacySettings.Default);
                 var settingsService = DiHandler.GetService<SettingsService>();
-                var current = await settingsService.GetCurrentValue(con.UserId.ToString(), "privacySettings", () => PrivacySettings.Default);
+                var current = await settingsService.GetCurrentValue(userId, "privacySettings", () => PrivacySettings.Default);
                 return GetValueOnObject(doc.RealName, current);
             }
             else if (doc.Prefix == "lore")
             {
+                var userId = TryGetUserId(con);
+                if (userId == null)
+                    return GetValueOnObject(doc.RealName, instanceDescription ?? DescriptionSetting.Default);
                 var settingsService = DiHandler.GetService<SettingsService>();
-                var current = await settingsService.GetCurrentValue(con.UserId.ToString(), "description", () =>
+                var current = await settingsService.GetCurrentValue(userId, "description", () =>
                 {
                     return DescriptionSetting.Default;
                 });

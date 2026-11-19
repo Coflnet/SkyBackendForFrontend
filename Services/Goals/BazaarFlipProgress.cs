@@ -31,8 +31,54 @@ public class BazaarFlipOrder
 
 public enum BazaarFlipAction { Buy, WaitBuy, ClaimItems, Sell, WaitSell, ClaimCoins, Done }
 
+/// <summary>
+/// Best buy order of an item as read from an open bazaar screen and when it was read. TopAmount and TopOrderCount describe
+/// the best price level, NextPrice is the level below it (null when there is none); they detect the player's own order on top.
+/// </summary>
+public readonly record struct BazaarTopOrder(double Price, DateTime ObservedAt, long TopAmount = 0, int TopOrderCount = 0, double? NextPrice = null);
+
 public static class BazaarFlipProgress
 {
+    /// <summary>Smallest bazaar price step; an Active plan bids this much above the best buy order.</summary>
+    public const double PriceTick = 0.1;
+    /// <summary>Prefix of the hud line and the guide step when the buy price leaves no margin after the sell tax.</summary>
+    public const string NoMarginWarning = "§cno margin at current top order, re-quote · ";
+
+    /// <summary>
+    /// Buy price to place now. Active plans price their entry as best buy order + one tick, so a best buy order observed
+    /// after the quote re-applies that rule to fresher input. Other modes (Investing bids a policy quantile) keep the planned entry.
+    /// </summary>
+    public static double? EntryPrice(Goal goal, BazaarTopOrder? topBuyOrder)
+    {
+        var plan = goal?.Plan;
+        if (plan == null)
+            return null;
+        if (topBuyOrder is not { Price: > 0 } top || top.ObservedAt <= plan.GeneratedAt || !IsActiveMode(plan))
+            return plan.EntryPrice;
+        if (!IsOwnTopOrder(goal.BazaarFlip, top))
+            return RoundToTick(top.Price + PriceTick);
+        // outbidding the own order costs coins without a better queue position: beat the best other order instead
+        return top.NextPrice is { } next ? RoundToTick(next + PriceTick) : top.Price;
+    }
+
+    /// <summary>True when buying at the price earns nothing after the sell tax at the planned exit.</summary>
+    public static bool NoMargin(BazaarPlanInfo plan, double? entryPrice)
+        => plan is { ExitPrice: > 0 } && entryPrice is { } entry && entry >= plan.ExitPrice * (1 - plan.SellTaxRate);
+
+    /// <summary>Rounds a price to the bazaar tick.</summary>
+    public static double RoundToTick(double price) => Math.Round(price, 1, MidpointRounding.AwayFromZero);
+
+    private static bool IsActiveMode(BazaarPlanInfo plan) => string.Equals(plan.Mode, "Active", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A single order on top that fits into the unfilled rest of an active own buy order is taken to be that order.</summary>
+    private static bool IsOwnTopOrder(BazaarFlipState state, BazaarTopOrder top)
+    {
+        if (state == null || top.TopOrderCount != 1 || top.TopAmount <= 0)
+            return false;
+        var unfilled = state.Orders.Where(o => !o.IsSell && o.Active).Select(o => o.Amount - o.Filled).DefaultIfEmpty(0).Max();
+        return top.TopAmount <= unfilled;
+    }
+
     public static long Filled(BazaarFlipState state, bool sell) => state.Orders.Where(o => o.IsSell == sell).Sum(o => o.Filled);
 
     public static long Committed(BazaarFlipState state, bool sell) => state.Orders.Where(o => o.IsSell == sell).Sum(o => o.Active ? o.Amount : o.Filled);
@@ -98,6 +144,14 @@ public static class BazaarFlipProgress
             var closedAt = stored.ClosedAt == null || order.ClosedAt > stored.ClosedAt ? order.ClosedAt : stored.ClosedAt;
             changed |= stored.Amount != amount || stored.Filled != filled || stored.Claimed != claimed
                 || stored.Active != active || stored.ClosedAt != closedAt;
+            // Admission rule: only the buy placed for the planned quantity anchors the deadline. Stored orders carry no price,
+            // so the one-tick price check cannot be applied here and the quantity check alone decides (0 = legacy plan, unknown).
+            if (!order.IsSell && goal.Plan is { Deadline: null } plan
+                && (plan.OriginalQuantity == 0 || order.Amount == plan.OriginalQuantity))
+            {
+                plan.Deadline = order.CreatedAt.AddHours(plan.HorizonHours);
+                changed = true;
+            }
             stored.Amount = amount;
             stored.Filled = filled;
             stored.Claimed = claimed;
@@ -108,6 +162,10 @@ public static class BazaarFlipProgress
     }
 
     public static ChatPartDto Line(Goal goal, bool hasCookie, string name, string search)
+        => Line(goal, hasCookie, name, search, DateTime.UtcNow);
+
+    // entryPrice: buy price to show instead of the planned entry (see EntryPrice), null for the planned one
+    public static ChatPartDto Line(Goal goal, bool hasCookie, string name, string search, DateTime now, double? entryPrice = null)
     {
         var s = goal.BazaarFlip;
         var action = Next(goal);
@@ -122,16 +180,69 @@ public static class BazaarFlipProgress
             BazaarFlipAction.ClaimCoins => $"§aClaim coins for {Filled(s, true) - s.SellClaimed:N0}x {name}",
             _ => $"§aBazaar flip complete: {goal.Quantity:N0}x {name} claimed"
         };
+        var plan = goal.Plan;
+        if (plan != null)
+            text = PlanText(text, plan, action, entryPrice ?? plan.EntryPrice, now);
         var command = action switch {
             BazaarFlipAction.Buy => $"/cofl bzorder {(hasCookie ? "" : "search ")}{buyAmount} {search}",
             BazaarFlipAction.Sell => hasCookie ? $"/bz {search}" : $"/cofl bazaarsearch {search}",
             BazaarFlipAction.Done => null,
             _ => hasCookie ? "/managebazaarorders" : null
         };
-        return new ChatPartDto { Text = text, OnClick = command,
-            Hover = action == BazaarFlipAction.Buy ? "Choose Create Buy Order and review the current price before confirming." + (hasCookie ? "" : " Open a Bazaar NPC first.")
+        var hover = BaseHover(action, hasCookie, sellAmount);
+        if (plan != null)
+            hover += PlanHover(plan, NetProfit(plan, entryPrice, goal.Quantity));
+        return new ChatPartDto { Text = text, OnClick = command, Hover = hover };
+    }
+
+    private static string PlanText(string text, BazaarPlanInfo plan, BazaarFlipAction action, double entryPrice, DateTime now)
+    {
+        if (action == BazaarFlipAction.Buy)
+            text += $" §7@ §6{GoalHud.OrderPrice(entryPrice)}";
+        else if (action == BazaarFlipAction.Sell)
+            text += $" §7@ §6{GoalHud.OrderPrice(plan.ExitPrice)}";
+        if (action == BazaarFlipAction.Buy && NoMargin(plan, entryPrice))
+            return NoMarginWarning + text;
+        if (plan.Deadline is { } due && due < now
+            && action is BazaarFlipAction.WaitBuy or BazaarFlipAction.WaitSell or BazaarFlipAction.Sell)
+            return "§cdeadline passed · " + text;
+        return text;
+    }
+
+    /// <summary>The engine's estimate for the planned entry, recomputed as (exit after tax - entry) * quantity for a refreshed one.</summary>
+    private static double NetProfit(BazaarPlanInfo plan, double? entryPrice, long quantity)
+    {
+        if (entryPrice is not { } entry || entry == plan.EntryPrice || plan.ExitPrice <= 0)
+            return plan.EstimatedNetProfit;
+        return (plan.ExitPrice * (1 - plan.SellTaxRate) - entry) * quantity;
+    }
+
+    private static string PlanHover(BazaarPlanInfo plan, double netProfit)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"\nMode: {plan.Mode}");
+        sb.Append($"\nnet est. {(netProfit >= 0 ? "+" : "")}{GoalHud.ShortPrice(netProfit)} after {(plan.SellTaxRate * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}% tax ({plan.TaxSource})");
+        sb.Append(plan.Deadline is { } d ? $"\ndeadline {d:yyyy-MM-dd HH:mm} UTC" : "\ndeadline starts with your first buy");
+        sb.Append('\n').Append(plan.ConfidenceStatus switch
+        {
+            "Qualified" => $">{QualifyPercent(plan.QualifyThreshold)}% chance to complete the full buy+sell cycle by the deadline (lower bound {(plan.LowerBound is { } lb ? (lb * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%" : "unknown")})"
+                + (plan.EvidenceSource == "simulation" ? " (simulated from market history, not yet confirmed by tracked trades)" : ""),
+            "InsufficientEvidence" => "confidence unknown: insufficient evidence",
+            "SimulationOnly" => "simulation-only estimate, not a guarantee",
+            "Stale" or "StaleInputs" => "stale quote",
+            _ => "no probability claim"
+        });
+        return sb.ToString();
+    }
+
+    private static string QualifyPercent(double? threshold)
+        => ((threshold ?? 0.95) * 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string BaseHover(BazaarFlipAction action, bool hasCookie, long sellAmount)
+    {
+        return action == BazaarFlipAction.Buy ? "Choose Create Buy Order and review the current price before confirming." + (hasCookie ? "" : " Open a Bazaar NPC first.")
                 : action == BazaarFlipAction.Sell ? $"Choose Create Sell Offer for {sellAmount:N0} items and review the current price. Partial claims can be sold while the rest fills." + (hasCookie ? "" : " Open a Bazaar NPC first.")
                 : action == BazaarFlipAction.Done ? "The sell proceeds were claimed; listing or filling alone does not complete this flip."
-                : "Open Your Bazaar Orders to inspect or claim this item. Cancelling unfilled quantities allows replacement orders." + (hasCookie ? "" : " Talk to a Bazaar NPC first.") };
+                : "Open Your Bazaar Orders to inspect or claim this item. Cancelling unfilled quantities allows replacement orders." + (hasCookie ? "" : " Talk to a Bazaar NPC first.");
     }
 }

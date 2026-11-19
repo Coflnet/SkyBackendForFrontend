@@ -532,8 +532,16 @@ public class InventoryParser
             else if (type == "long")
                 attributesWithoutEnchantments[attribute.Name] = ((long)attribute.Value["value"][0] << 32) + (int)attribute.Value["value"][1];
             else
-                attributesWithoutEnchantments[attribute.Name] = attribute.Value["value"];
+                attributesWithoutEnchantments[attribute.Name] = UnwrapStringValue(attribute.Value["value"]);
         }
+    }
+
+    /// <summary>
+    /// String tokens are passed as plain strings so json encoded attributes (eg. petInfo) can be unwrapped by the nbt flattening
+    /// </summary>
+    private static object UnwrapStringValue(JToken value)
+    {
+        return value is JValue { Type: JTokenType.String } text ? text.Value : value;
     }
 
     private static JObject GetExtraAttributes(dynamic item)

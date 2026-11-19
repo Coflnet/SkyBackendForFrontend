@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using Coflnet.Payments.Client.Api;
 using System;
@@ -123,6 +124,7 @@ namespace Coflnet.Sky.Commands.Shared
                 provider.GetRequiredService<IConfiguration>()["CRAFTS_BASE_URL"];
 
             services.AddSingleton<ICraftsApi>(context => new CraftsApi(GetCraftsBaseUrl(context)));
+            services.AddSingleton<ICraftCostProvider>(context => new CraftCostProvider(context.GetRequiredService<ICraftsApi>()));
             services.AddSingleton<INpcApi>(context => new NpcApi(GetCraftsBaseUrl(context)));
             services.AddSingleton<IDropApi>(context => new DropApi(GetCraftsBaseUrl(context)));
             services.AddSingleton<IKatApi>(context => new KatApi(GetCraftsBaseUrl(context)));
@@ -162,10 +164,10 @@ namespace Coflnet.Sky.Commands.Shared
                 var config = context.GetRequiredService<IConfiguration>();
                 return new TrackerApi(config["FLIPTRACKER_BASE_URL"]);
             });
-            services.AddSingleton<IMayorApiApi>(context =>
+            services.AddSingleton<IMayorApi>(context =>
             {
                 var config = context.GetRequiredService<IConfiguration>();
-                return new MayorApiApi(config["MAYOR_BASE_URL"]);
+                return new MayorApi(config["MAYOR_BASE_URL"]);
             });
             services.AddSingleton<Coflnet.Leaderboard.Client.Api.IScoresApi>(context =>
             {
@@ -235,13 +237,14 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddSingleton<PlayerName.PlayerNameService>();
             services.AddSingleton<IdConverter>();
             services.AddSingleton<AuctionService>();
+            services.TryAddSingleton<IFlipMatchTracker, InMemoryFlipMatchTracker>();
+            services.TryAddSingleton<ApiUpdateClock>();
             services.AddSingleton<FlipperService>();
             services.AddSingleton<Kafka.KafkaCreator>();
             services.AddSingleton<IStateUpdateService, StateUpdateService>();
             services.AddSingleton<McAccountService>();
             services.AddSingleton<MuseumService>();
             services.AddSingleton<SearchService>();
-            services.AddSingleton<ActiveAuctionFilterService>();
             services.AddHostedService<ServicePorter>();
             services.AddSingleton<NBT>();
             services.AddSingleton<INBT>(di=> di.GetRequiredService<NBT>());
@@ -256,6 +259,7 @@ namespace Coflnet.Sky.Commands.Shared
             services.AddHttpClient();
             services.AddSingleton<ICollectionNameResolver, CollectionNameResolver>();
             services.AddSingleton<IProfileClient, ProfileClient>();
+            services.AddSingleton<IAccessoryService, AccessoryService>();
             services.AddSingleton<ForgeFlipService>();
             services.AddSingleton<IBazaarFlipperApi, BazaarFlipperApi>(s =>
                 new BazaarFlipperApi(s.GetRequiredService<IConfiguration>()["BAZAARFLIPPER_BASE_URL"]));
